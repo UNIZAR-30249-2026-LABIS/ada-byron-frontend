@@ -17,6 +17,10 @@ export default defineConfig({
                 changeOrigin: true,
                 ws: true,   // WebSocket para SignalR
             },
+            '/geoserver': {
+                target: 'http://localhost:8080',
+                changeOrigin: true,
+            },
         },
     },
 
