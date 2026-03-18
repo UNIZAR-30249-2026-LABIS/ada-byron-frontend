@@ -4,8 +4,6 @@ import 'leaflet/dist/leaflet.css';
 
 const WMS_BASE_URL = '/geoserver/adabyron/wms';
 
-
-
 const FLOOR_LABELS = {
     S1: 'Sótano 1',
     0: 'Planta baja',
@@ -25,7 +23,8 @@ const FLOOR_LAYERS = {
     4: 'adabyron:spaces_floor_4_ada_byron_ui',
     5: 'adabyron:spaces_floor_5_ada_byron_ui',
 };
-function FeatureInfoPopup({ url, layer }) {
+
+function FeatureInfoPopup({ url, layer, onSpaceSelect }) {
     const [info, setInfo] = useState(null);
 
     const map = useMapEvents({
@@ -40,7 +39,7 @@ function FeatureInfoPopup({ url, layer }) {
                 srs: 'EPSG:4326',
                 version: '1.1.1',
                 format: 'image/png',
-                bbox: bbox,
+                bbox,
                 height: Math.round(size.y),
                 width: Math.round(size.x),
                 layers: layer,
@@ -57,16 +56,28 @@ function FeatureInfoPopup({ url, layer }) {
                 const data = await response.json();
 
                 if (data.features && data.features.length > 0) {
+                    const properties = data.features[0].properties;
+
                     setInfo({
                         latlng: e.latlng,
-                        properties: data.features[0].properties
+                        properties
                     });
+
+                    if (onSpaceSelect) {
+                        onSpaceSelect(properties);
+                    }
                 } else {
                     setInfo(null);
+                    if (onSpaceSelect) {
+                        onSpaceSelect(null);
+                    }
                 }
             } catch (error) {
-                console.error("Error al consultar WMS GetFeatureInfo:", error);
+                console.error('Error al consultar WMS GetFeatureInfo:', error);
                 setInfo(null);
+                if (onSpaceSelect) {
+                    onSpaceSelect(null);
+                }
             }
         }
     });
@@ -75,11 +86,11 @@ function FeatureInfoPopup({ url, layer }) {
 
     return (
         <Popup position={info.latlng} onClose={() => setInfo(null)}>
-            <div style={{ minWidth: '200px' }}>
+            <div style={{ minWidth: '220px' }}>
                 <h4 style={{ marginTop: 0, marginBottom: '8px', borderBottom: '1px solid #ccc', paddingBottom: '4px' }}>
                     Información
                 </h4>
-                <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                <div style={{ maxHeight: '220px', overflowY: 'auto' }}>
                     {Object.entries(info.properties).map(([key, value]) => {
                         if (key === 'bbox' || value === null || value === '') return null;
 
@@ -96,7 +107,7 @@ function FeatureInfoPopup({ url, layer }) {
     );
 }
 
-export default function InteractiveMap() {
+export default function InteractiveMap({ onSpaceSelect }) {
     const [selectedFloor, setSelectedFloor] = useState('0');
 
     return (
@@ -148,7 +159,11 @@ export default function InteractiveMap() {
                     maxZoom={22}
                 />
 
-                <FeatureInfoPopup url={WMS_BASE_URL} layer={FLOOR_LAYERS[selectedFloor]} />
+                <FeatureInfoPopup
+                    url={WMS_BASE_URL}
+                    layer={FLOOR_LAYERS[selectedFloor]}
+                    onSpaceSelect={onSpaceSelect}
+                />
             </MapContainer>
         </div>
     );
