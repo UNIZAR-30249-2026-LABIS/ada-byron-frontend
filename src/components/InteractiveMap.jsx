@@ -5,15 +5,7 @@ import 'leaflet/dist/leaflet.css';
 const WMS_BASE_URL = '/geoserver/adabyron/wms';
 
 
-const FLOOR_LAYERS = {
-    S1: 'adabyron:spaces_floor_s1_ada_byron',
-    0: 'adabyron:spaces_floor_0_ada_byron',
-    1: 'adabyron:spaces_floor_1_ada_byron',
-    2: 'adabyron:spaces_floor_2_ada_byron',
-    3: 'adabyron:spaces_floor_3_ada_byron',
-    4: 'adabyron:spaces_floor_4_ada_byron',
-    5: 'adabyron:spaces_floor_5_ada_byron',
-};
+
 const FLOOR_LABELS = {
     S1: 'Sótano 1',
     0: 'Planta baja',
@@ -24,6 +16,15 @@ const FLOOR_LABELS = {
     5: 'Planta 5',
 };
 
+const FLOOR_LAYERS = {
+    S1: 'adabyron:spaces_floor_s1_ada_byron_ui',
+    0: 'adabyron:spaces_floor_0_ada_byron_ui',
+    1: 'adabyron:spaces_floor_1_ada_byron_ui',
+    2: 'adabyron:spaces_floor_2_ada_byron_ui',
+    3: 'adabyron:spaces_floor_3_ada_byron_ui',
+    4: 'adabyron:spaces_floor_4_ada_byron_ui',
+    5: 'adabyron:spaces_floor_5_ada_byron_ui',
+};
 function FeatureInfoPopup({ url, layer }) {
     const [info, setInfo] = useState(null);
 
