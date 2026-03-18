@@ -1,10 +1,13 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
-    plugins: [react()],
+    plugins: [
+        react(),
+        tailwindcss(),
+    ],
 
-    // Proxy de desarrollo → ada-byron-backend
     server: {
         port: 5173,
         proxy: {
@@ -15,7 +18,7 @@ export default defineConfig({
             '/hubs': {
                 target: 'http://localhost:5000',
                 changeOrigin: true,
-                ws: true,   // WebSocket para SignalR
+                ws: true,
             },
             '/geoserver': {
                 target: 'http://localhost:8080',
@@ -24,7 +27,6 @@ export default defineConfig({
         },
     },
 
-    // Vitest — entorno jsdom para React Testing Library
     test: {
         globals: true,
         environment: 'jsdom',
