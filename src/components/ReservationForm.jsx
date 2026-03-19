@@ -1,23 +1,24 @@
 import { useMemo, useState } from 'react';
+import { createReservation } from '../services/api';
 
 export default function ReservationForm({ selectedSpace }) {
     const today = useMemo(() => new Date().toISOString().split('T')[0], []);
     const [form, setForm] = useState({
-        uso: '',
-        asistentes: 1,
+        requesterEmail: '',
+        attendeeCount: 1,
         fecha: today,
         horaInicio: '',
         horaFin: '',
     });
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
-    const [previewPayload, setPreviewPayload] = useState(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
         setForm((prev) => ({
             ...prev,
-            [name]: name === 'asistentes' ? Number(value) : value,
+            [name]: name === 'attendeeCount' ? Number(value) : value,
         }));
     };
 
@@ -26,15 +27,15 @@ export default function ReservationForm({ selectedSpace }) {
             return 'Debes seleccionar un espacio en el mapa.';
         }
 
-        if (!form.uso.trim()) {
-            return 'El uso o motivo de la reserva es obligatorio.';
+        if (!form.requesterEmail.trim()) {
+            return 'El email del solicitante es obligatorio.';
         }
 
         if (!form.fecha || !form.horaInicio || !form.horaFin) {
             return 'Debes indicar fecha, hora de inicio y hora de fin.';
         }
 
-        if (form.asistentes <= 0) {
+        if (form.attendeeCount <= 0) {
             return 'El número de asistentes debe ser mayor que 0.';
         }
 
@@ -52,11 +53,10 @@ export default function ReservationForm({ selectedSpace }) {
         return '';
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
         setSuccess('');
-        setPreviewPayload(null);
 
         const validationError = validateForm();
         if (validationError) {
@@ -65,18 +65,23 @@ export default function ReservationForm({ selectedSpace }) {
         }
 
         const payload = {
-            espacioId: selectedSpace.id_espacio ?? selectedSpace.idEspacio ?? selectedSpace.id,
-            nombreEspacio: selectedSpace.nombre ?? '',
-            usoReserva: form.uso,
-            asistentes: form.asistentes,
-            fecha: form.fecha,
-            horaInicio: form.horaInicio,
-            horaFin: form.horaFin,
+            requesterEmail: form.requesterEmail,
+            spaceId: selectedSpace.id_espacio ?? selectedSpace.idEspacio ?? selectedSpace.id,
+            startTime: new Date(`${form.fecha}T${form.horaInicio}`).toISOString(),
+            endTime: new Date(`${form.fecha}T${form.horaFin}`).toISOString(),
+            attendeeCount: form.attendeeCount,
         };
 
-        console.log('Payload de reserva simulado:', payload);
-        setPreviewPayload(payload);
-        setSuccess('Formulario válido. Reserva preparada correctamente (modo local, sin backend).');
+        setIsSubmitting(true);
+        try {
+            await createReservation(payload);
+            setSuccess('Reserva creada correctamente.');
+        } catch (err) {
+            console.error(err);
+            setError(err.response?.data?.error || err.message || 'Error al crear la reserva.');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -110,21 +115,21 @@ export default function ReservationForm({ selectedSpace }) {
                 </div>
             ) : (
                 <p style={{ color: '#64748b' }}>
-                    Selecciona primero una sala en el mapa para preparar una reserva.
+                    Selecciona primero una sala en el mapa para realizar una reserva.
                 </p>
             )}
 
             <form onSubmit={handleSubmit}>
                 <div style={{ marginBottom: '0.75rem' }}>
                     <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600 }}>
-                        Uso / motivo
+                        Email del solicitante
                     </label>
                     <input
-                        type="text"
-                        name="uso"
-                        value={form.uso}
+                        type="email"
+                        name="requesterEmail"
+                        value={form.requesterEmail}
                         onChange={handleChange}
-                        placeholder="Ej. Tutoría, práctica, reunión..."
+                        placeholder="ejemplo@unizar.es"
                         style={{
                             width: '100%',
                             padding: '0.65rem',
@@ -141,8 +146,8 @@ export default function ReservationForm({ selectedSpace }) {
                     <input
                         type="number"
                         min="1"
-                        name="asistentes"
-                        value={form.asistentes}
+                        name="attendeeCount"
+                        value={form.attendeeCount}
                         onChange={handleChange}
                         style={{
                             width: '100%',
@@ -241,40 +246,21 @@ export default function ReservationForm({ selectedSpace }) {
 
                 <button
                     type="submit"
-                    disabled={!selectedSpace}
+                    disabled={!selectedSpace || isSubmitting}
                     style={{
                         padding: '0.75rem 1rem',
                         borderRadius: '8px',
                         border: 'none',
-                        background: !selectedSpace ? '#94a3b8' : '#2563eb',
+                        background: (!selectedSpace || isSubmitting) ? '#94a3b8' : '#2563eb',
                         color: 'white',
-                        cursor: !selectedSpace ? 'not-allowed' : 'pointer',
+                        cursor: (!selectedSpace || isSubmitting) ? 'not-allowed' : 'pointer',
                         fontWeight: 700,
                         width: '100%',
                     }}
                 >
-                    Preparar reserva
+                    {isSubmitting ? 'Enviando...' : 'Crear reserva'}
                 </button>
             </form>
-
-            {previewPayload && (
-                <div style={{ marginTop: '1rem' }}>
-                    <strong>Payload simulado:</strong>
-                    <pre
-                        style={{
-                            marginTop: '0.5rem',
-                            padding: '0.75rem',
-                            background: '#0f172a',
-                            color: '#e2e8f0',
-                            borderRadius: '8px',
-                            overflowX: 'auto',
-                            fontSize: '12px',
-                        }}
-                    >
-                        {JSON.stringify(previewPayload, null, 2)}
-                    </pre>
-                </div>
-            )}
         </div>
     );
 }
