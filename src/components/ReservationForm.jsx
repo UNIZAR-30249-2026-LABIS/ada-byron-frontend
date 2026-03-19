@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { createReservation } from '../services/api';
+import { getUser } from '../services/authService';
 
 export default function ReservationForm({ selectedSpace }) {
     const today = useMemo(() => new Date().toISOString().split('T')[0], []);
     const [form, setForm] = useState({
-        requesterEmail: '',
         attendeeCount: 1,
         fecha: today,
         horaInicio: '',
@@ -25,10 +25,6 @@ export default function ReservationForm({ selectedSpace }) {
     const validateForm = () => {
         if (!selectedSpace) {
             return 'Debes seleccionar un espacio en el mapa.';
-        }
-
-        if (!form.requesterEmail.trim()) {
-            return 'El email del solicitante es obligatorio.';
         }
 
         if (!form.fecha || !form.horaInicio || !form.horaFin) {
@@ -64,8 +60,14 @@ export default function ReservationForm({ selectedSpace }) {
             return;
         }
 
+        const user = getUser();
+        if (!user || !user.email) {
+            setError('No has iniciado sesión o tu sesión ha caducado.');
+            return;
+        }
+
         const payload = {
-            requesterEmail: form.requesterEmail,
+            requesterEmail: user.email,
             spaceId: selectedSpace.id_espacio ?? selectedSpace.idEspacio ?? selectedSpace.id,
             startTime: new Date(`${form.fecha}T${form.horaInicio}`).toISOString(),
             endTime: new Date(`${form.fecha}T${form.horaFin}`).toISOString(),
@@ -120,25 +122,6 @@ export default function ReservationForm({ selectedSpace }) {
             )}
 
             <form onSubmit={handleSubmit}>
-                <div style={{ marginBottom: '0.75rem' }}>
-                    <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600 }}>
-                        Email del solicitante
-                    </label>
-                    <input
-                        type="email"
-                        name="requesterEmail"
-                        value={form.requesterEmail}
-                        onChange={handleChange}
-                        placeholder="ejemplo@unizar.es"
-                        style={{
-                            width: '100%',
-                            padding: '0.65rem',
-                            borderRadius: '8px',
-                            border: '1px solid #cbd5e1',
-                        }}
-                    />
-                </div>
-
                 <div style={{ marginBottom: '0.75rem' }}>
                     <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600 }}>
                         Asistentes
