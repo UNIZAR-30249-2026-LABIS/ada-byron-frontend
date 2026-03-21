@@ -80,7 +80,7 @@ export default function ReservationForm({ selectedSpace }) {
             setSuccess('Reserva creada correctamente.');
         } catch (err) {
             console.error(err);
-            setError(err.response?.data?.error || err.message || 'Error al crear la reserva.');
+            setError(err.response?.data?.detail || err.response?.data?.error || err.message || 'Error al crear la reserva.');
         } finally {
             setIsSubmitting(false);
         }
