@@ -26,7 +26,7 @@ export default function LoginCard() {
 
             {/* ── Footer ── */}
             <p className="text-center text-[11px] text-gray-400">
-                © 2024 Universidad de Zaragoza · Ada Byron
+                © 2026 Universidad de Zaragoza · Ada Byron
             </p>
 
         </div>
