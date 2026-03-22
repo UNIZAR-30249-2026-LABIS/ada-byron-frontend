@@ -96,12 +96,6 @@ El flujo de datos cartográficos implementado es:
 GeoJSON -> QGIS -> PostGIS -> GeoServer -> WMS -> Leaflet
 ```
 
-## Próximos pasos
-Los siguientes pasos previstos para esta parte del proyecto son:
-* Aplicar estilos por color según tipo o uso del espacio.
-* Mejorar visualmente el selector de plantas.
-* Añadir interacción más rica sobre el mapa.
-* Integrar el mapa con la lógica de reservas.
 
 ## Autores
 Proyecto desarrollado dentro de la asignatura de Laboratorio de Sistemas de Información por Tahir Berga y Miguel Ayllón.
