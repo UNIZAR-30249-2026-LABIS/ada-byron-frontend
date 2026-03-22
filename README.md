@@ -88,7 +88,7 @@ El componente `InteractiveMap.jsx` permite:
 Este frontend depende de:
 * **GeoServer** para servir las capas WMS.
 * **PostgreSQL + PostGIS** como origen cartográfico del GeoServer.
-* **Backend del proyecto** para futuras funcionalidades de autenticación, reservas y tiempo real.
+* **Backend del proyecto** para funcionalidades de autenticación, reservas y tiempo real.
 
 ## Flujo cartográfico actual
 El flujo de datos cartográficos implementado es:
