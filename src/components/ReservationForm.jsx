@@ -54,11 +54,11 @@ export default function ReservationForm({ selectedSpace, onClose }) {
         }
 
         const payload = {
-            requesterEmail: user.email,
-            spaceId: selectedSpace.id_espacio ?? selectedSpace.idEspacio ?? selectedSpace.id,
-            startTime: new Date(`${form.fecha}T${form.horaInicio}`).toISOString(),
-            endTime: new Date(`${form.fecha}T${form.horaFin}`).toISOString(),
-            attendeeCount: form.attendeeCount,
+            email: user.email,
+            codigoEspacio: selectedSpace.id_espacio ?? selectedSpace.idEspacio ?? selectedSpace.id,
+            inicio: new Date(`${form.fecha}T${form.horaInicio}`).toISOString(),
+            fin: new Date(`${form.fecha}T${form.horaFin}`).toISOString(),
+            numeroAsistentes: form.attendeeCount,
         };
 
         if (form.uso) {
@@ -71,8 +71,11 @@ export default function ReservationForm({ selectedSpace, onClose }) {
             setSuccess('Reserva confirmada.');
             setTimeout(() => { if (onClose) onClose(); }, 2000);
         } catch (err) {
-            console.error(err);
-            setError(err.response?.data?.detail || err.response?.data?.error || err.message || 'Error al crear la reserva.');
+            console.error('Error enviando reserva:', err.response?.data || err);
+            const data = err.response?.data;
+            // Si el error es de .NET ModelBinding, viene en "errors" o "title". Si es de nuestro dominio, en "detail".
+            const validationErrors = data?.errors ? Object.values(data.errors).flat().join(' ') : null;
+            setError(data?.detail || validationErrors || data?.title || err.message || 'Error al crear la reserva.');
         } finally {
             setIsSubmitting(false);
         }
