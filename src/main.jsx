@@ -6,6 +6,7 @@ import './index.css';
 import LoginPage from './pages/LoginPage';
 import MapPage   from './pages/MapPage';
 import SearchPage from './pages/SearchPage';
+import AdminDashboard from './pages/AdminDashboard';
 import { isAuthenticated } from './services/authService';
 
 function PrivateRoute({ children }) {
@@ -30,6 +31,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                     element={
                         <PrivateRoute>
                             <SearchPage />
+                        </PrivateRoute>
+                    }
+                />
+                <Route
+                    path="/admin"
+                    element={
+                        <PrivateRoute>
+                            <AdminDashboard />
                         </PrivateRoute>
                     }
                 />

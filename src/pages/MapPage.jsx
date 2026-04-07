@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import InteractiveMap from '../components/InteractiveMap';
 import ReservationForm from '../components/ReservationForm';
 import { useNavigate } from 'react-router-dom';
+import { getUser } from '../services/authService';
 
 const FLOOR_OPTIONS = [
     { value: 'S1', label: 'Sótano 1' },
@@ -17,6 +18,12 @@ export default function MapPage() {
     const navigate = useNavigate();
     const [selectedSpace, setSelectedSpace] = useState(null);
     const [selectedFloor, setSelectedFloor] = useState('0');
+    const [isManager, setIsManager] = useState(false);
+
+    useEffect(() => {
+        const user = getUser();
+        setIsManager(user?.rol === 'Gerente');
+    }, []);
 
     return (
         <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans">
@@ -150,6 +157,21 @@ export default function MapPage() {
                             </div>
                         </div>
                     </div>
+
+                    {/* Admin Access Button */}
+                    {isManager && (
+                        <div className="pt-4 border-t border-gray-100 mt-4">
+                            <button 
+                                onClick={() => navigate('/admin')}
+                                className="w-full py-2 bg-rose-50 text-rose-600 text-[11px] font-bold rounded-xl border border-rose-100 hover:bg-rose-600 hover:text-white transition-all shadow-sm flex items-center justify-center gap-2"
+                            >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                                </svg>
+                                Panel Administrativo
+                            </button>
+                        </div>
+                    )}
                 </div>
             </aside>
 
