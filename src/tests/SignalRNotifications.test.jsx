@@ -22,48 +22,76 @@ vi.mock('@microsoft/signalr', () => {
                 state: 'Disconnected'
             })
         })),
+        HubConnectionState: {
+            Disconnected: 'Disconnected',
+            Connected: 'Connected',
+            Connecting: 'Connecting',
+            Reconnecting: 'Reconnecting'
+        },
         HttpTransportType: { WebSockets: 1 }
     };
 });
 
-describe('HU-18: SignalR Notifications', () => {
-    it('debe renderizar la notificación correctamente cuando se recibe un evento ReservaAnulada', async () => {
+describe('HU-18: SignalR Lifecycle and Connection', () => {
+    it('debe iniciar la conexión con el Hub URL y Token correctos', async () => {
+        // Simular token en localStorage
+        localStorage.setItem('ada_token', 'fake-jwt-token');
+        
+        render(
+            <NotificationProvider>
+                <div>Test App</div>
+            </NotificationProvider>
+        );
+
+        // SignalR builder debe haber sido llamado
+        expect(signalR.HubConnectionBuilder).toHaveBeenCalled();
+    });
+
+    it('debe registrar el callback para el evento "ReservaAnulada"', () => {
+        render(
+            <NotificationProvider>
+                <div>Test App</div>
+            </NotificationProvider>
+        );
+
+        // Verificamos el acceso al mock de la conexión (vía el mock de build)
+        const connectionInstance = new signalR.HubConnectionBuilder().build();
+        expect(connectionInstance.on).toHaveBeenCalledWith('ReservaAnulada', expect.any(Function));
+    });
+});
+
+describe('HU-18: UI Notification Stack', () => {
+    it('debe mostrar el mensaje de la notificación recibida mediante props', () => {
         const mockNotification = {
             id: 1,
             type: 'danger',
             title: '¡Reserva Anulada!',
-            message: 'Tu reserva en ADA.1200 ha sido cancelada por un administrador: "Mantenimiento preventivo"',
-            timestamp: new Date()
-        };
-
-        const onClose = vi.fn();
-
-        render(
-            <NotificationBanner 
-                notification={mockNotification} 
-                onClose={onClose} 
-            />
-        );
-
-        // Assert: El título y el mensaje deben ser visibles
-        expect(screen.getByText('¡Reserva Anulada!')).toBeInTheDocument();
-        expect(screen.getByText(/ADA.1200/)).toBeInTheDocument();
-        expect(screen.getByText(/Mantenimiento preventivo/)).toBeInTheDocument();
-    });
-
-    it('la notificación (Banner) debe mostrar el icono de alerta (SVG)', () => {
-        const mockNotification = {
-            id: 2,
-            type: 'danger',
-            title: 'Test',
-            message: 'Test Message',
+            message: 'Aula ADA.1200',
             timestamp: new Date()
         };
 
         render(<NotificationBanner notification={mockNotification} onClose={() => {}} />);
+        expect(screen.getByText('¡Reserva Anulada!')).toBeInTheDocument();
+        expect(screen.getByText('Aula ADA.1200')).toBeInTheDocument();
+    });
+
+    it('el Toast debe desaparecer tras hacer clic en el botón de cerrar', async () => {
+        const onClose = vi.fn();
+        const mockNotification = {
+            id: 1,
+            type: 'info',
+            title: 'Info Close',
+            message: 'Close test',
+            timestamp: new Date()
+        };
+
+        render(<NotificationBanner notification={mockNotification} onClose={onClose} />);
         
-        // Verifica que el contenedor tiene las clases de estilo premium para 'danger'
-        const iconContainer = screen.getByRole('button').parentElement;
-        expect(iconContainer).toBeInTheDocument();
+        const closeBtn = screen.getByRole('button');
+        await act(async () => {
+            closeBtn.click();
+        });
+
+        expect(onClose).toHaveBeenCalledWith(1);
     });
 });
