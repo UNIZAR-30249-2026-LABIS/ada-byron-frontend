@@ -5,6 +5,7 @@ import './index.css';
 
 import LoginPage from './pages/LoginPage';
 import MapPage   from './pages/MapPage';
+import SearchPage from './pages/SearchPage';
 import { isAuthenticated } from './services/authService';
 
 function PrivateRoute({ children }) {
@@ -21,6 +22,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                     element={
                         <PrivateRoute>
                             <MapPage />
+                        </PrivateRoute>
+                    }
+                />
+                <Route
+                    path="/buscar"
+                    element={
+                        <PrivateRoute>
+                            <SearchPage />
                         </PrivateRoute>
                     }
                 />

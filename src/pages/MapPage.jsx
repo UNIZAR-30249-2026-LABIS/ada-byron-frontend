@@ -108,11 +108,14 @@ export default function MapPage() {
                             Actualizar Vista
                         </button>
 
-                        <div className="mt-2 bg-[#eff6ff] border border-blue-100 rounded-xl p-3 text-center transition-transform hover:-translate-y-0.5 cursor-pointer group shadow-sm shrink-0">
+                        <div 
+                            className="mt-2 bg-[#eff6ff] border border-blue-100 rounded-xl p-3 text-center transition-transform hover:-translate-y-0.5 cursor-pointer group shadow-sm shrink-0"
+                            onClick={() => navigate('/buscar')}
+                        >
                             <p className="text-[#2563eb] text-[11px] font-medium leading-snug mb-2">
                                 ¿Necesitas características específicas?
                             </p>
-                            <button className="text-blue-700 text-xs font-bold group-hover:text-blue-800 transition-colors inline-flex items-center gap-1 pointer-events-none">
+                            <button className="text-blue-700 text-xs font-bold group-hover:text-blue-800 transition-colors inline-flex items-center gap-1 cursor-pointer">
                                 Buscador Inteligente <span aria-hidden="true" className="group-hover:translate-x-1 transition-transform">&rarr;</span>
                             </button>
                         </div>
