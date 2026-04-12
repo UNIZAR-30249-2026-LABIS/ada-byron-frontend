@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+// Import the configured api instance instead of raw axios
+import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import InteractiveMap from '../components/InteractiveMap';
 import ReservationForm from '../components/ReservationForm';
@@ -43,37 +44,61 @@ export default function SearchPage() {
     const [filterCapacity, setFilterCapacity] = useState('');
 
     // Resultados de búsqueda
+    const [allSpaces, setAllSpaces] = useState([]);
     const [searchResults, setSearchResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
 
+    // Initial fetch of all spaces
     useEffect(() => {
         const fetchSpaces = async () => {
             setIsSearching(true);
             try {
-                // Prepara los query parameters (omitiendo vacíos para no mandar undefined)
-                const params = new URLSearchParams();
-                if (filterId) params.append('id', filterId);
-                if (filterFloor) params.append('floor', filterFloor);
-                if (filterCategory) params.append('category', filterCategory);
-                if (filterCapacity) params.append('capacity', filterCapacity);
-
-                const response = await axios.get(`/api/spaces/search?${params.toString()}`);
+                // Se solicita el listado completo debido a que el backend no expone un endpoint /search específico
+                const response = await api.get('/spaces');
+                setAllSpaces(response.data);
                 setSearchResults(response.data);
-
-                // Si el filtro de planta cambia y encuentra resultados, puede que queramos actualizar el mapa
-                if (filterFloor) {
-                    setSelectedFloor(filterFloor);
-                }
             } catch (error) {
                 console.error("Error al buscar espacios:", error);
             } finally {
                 setIsSearching(false);
             }
         };
-
-        // Trigger fetch with debounce or directly on change
         fetchSpaces();
-    }, [filterId, filterFloor, filterCategory, filterCapacity]);
+    }, []);
+
+    // Aplicar filtros en memoria
+    useEffect(() => {
+        let results = allSpaces;
+
+        if (filterId) {
+            results = results.filter(s => s.codigoEspacio?.toLowerCase().includes(filterId.toLowerCase()));
+        }
+        if (filterFloor) {
+            // El backend puede devolver -1 para Sótano 1
+            const pValor = filterFloor === 'S1' ? -1 : parseInt(filterFloor, 10);
+            results = results.filter(s => {
+                const spV = s.planta?.valor !== undefined ? s.planta.valor : s.planta;
+                return spV === pValor;
+            });
+        }
+        if (filterCategory) {
+            results = results.filter(s => s.categoriaReserva === filterCategory);
+        }
+        if (filterCapacity) {
+            const minCap = parseInt(filterCapacity, 10);
+            results = results.filter(s => {
+                const aforoOriginal = s.aforo?.valor !== undefined ? s.aforo.valor : s.aforo;
+                // Calculo estricto del frontend o podemos usar el aforo base:
+                return aforoOriginal >= minCap;
+            });
+        }
+
+        setSearchResults(results);
+
+        if (filterFloor) {
+            setSelectedFloor(filterFloor);
+        }
+    }, [filterId, filterFloor, filterCategory, filterCapacity, allSpaces]);
 
     return (
         <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans">

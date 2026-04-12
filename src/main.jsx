@@ -15,12 +15,17 @@ function PrivateRoute({ children }) {
     return isAuthenticated() ? children : <Navigate to="/login" replace />;
 }
 
+// Evita que usuarios ya autenticados vean la pantalla de login
+function PublicRoute({ children }) {
+    return isAuthenticated() ? <Navigate to="/mapa" replace /> : children;
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <NotificationProvider>
                 <Routes>
-                    <Route path="/login" element={<LoginPage />} />
+                    <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
                     <Route
                         path="/mapa"
                         element={

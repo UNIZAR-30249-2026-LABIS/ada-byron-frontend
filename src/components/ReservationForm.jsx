@@ -55,7 +55,7 @@ export default function ReservationForm({ selectedSpace, onClose }) {
 
         const payload = {
             email: user.email,
-            codigoEspacio: selectedSpace.id_espacio ?? selectedSpace.idEspacio ?? selectedSpace.id,
+            codigoEspacio: selectedSpace.codigoEspacio ?? selectedSpace.id_espacio ?? selectedSpace.idEspacio ?? selectedSpace.id,
             inicio: new Date(`${form.fecha}T${form.horaInicio}`).toISOString(),
             fin: new Date(`${form.fecha}T${form.horaFin}`).toISOString(),
             numeroAsistentes: form.attendeeCount,
@@ -105,7 +105,7 @@ export default function ReservationForm({ selectedSpace, onClose }) {
                         {selectedSpace.nombre || selectedSpace.name || 'Espacio seleccionado'}
                     </div>
                     <div className="text-[10px] text-gray-400 mb-2 font-mono truncate">
-                        ID: {selectedSpace.id_espacio || selectedSpace.idEspacio || selectedSpace.id || 'N/A'}
+                        ID: {selectedSpace.codigoEspacio || selectedSpace.id_espacio || selectedSpace.idEspacio || selectedSpace.id || 'N/A'}
                     </div>
                     <div className="flex flex-wrap gap-1.5 text-[9px] uppercase tracking-wider">
                         <span className="px-1.5 py-0.5 bg-white border border-gray-200 rounded text-gray-600 font-bold shadow-sm">
