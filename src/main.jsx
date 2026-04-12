@@ -7,6 +7,7 @@ import LoginPage from './pages/LoginPage';
 import MapPage   from './pages/MapPage';
 import SearchPage from './pages/SearchPage';
 import AdminDashboard from './pages/AdminDashboard';
+import MisReservas from './pages/MyReservationsPage';
 import { isAuthenticated } from './services/authService';
 import { NotificationProvider } from './services/NotificationProvider';
 
@@ -41,6 +42,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                         element={
                             <PrivateRoute>
                                 <AdminDashboard />
+                            </PrivateRoute>
+                        }
+                    />
+                    <Route
+                        path="/mis-reservas"
+                        element={
+                            <PrivateRoute>
+                                <MisReservas />
                             </PrivateRoute>
                         }
                     />

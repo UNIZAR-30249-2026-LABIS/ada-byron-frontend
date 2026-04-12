@@ -15,8 +15,9 @@ export function useNotifications() {
         if (!token) return;
 
         // Configuración con reconexión automática (Edge Case Handling)
+        // Se usa ruta relativa para pasar por el proxy configurado en vite.config.js y evitar problemas CORS/WebSocket
         const newConnection = new signalR.HubConnectionBuilder()
-            .withUrl('http://localhost:5000/hubs/notifications', {
+            .withUrl('/hubs/notifications', {
                 accessTokenFactory: () => token,
                 skipNegotiation: false,
                 transport: signalR.HttpTransportType.WebSockets
