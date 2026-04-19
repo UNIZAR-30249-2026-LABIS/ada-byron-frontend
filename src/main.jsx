@@ -8,7 +8,7 @@ import MapPage   from './pages/MapPage';
 import SearchPage from './pages/SearchPage';
 import AdminDashboard from './pages/AdminDashboard';
 import MisReservas from './pages/MyReservationsPage';
-import { isAuthenticated } from './services/authService';
+import { getUser, isAuthenticated } from './services/authService';
 import { NotificationProvider } from './services/NotificationProvider';
 
 function PrivateRoute({ children }) {
@@ -18,6 +18,12 @@ function PrivateRoute({ children }) {
 // Evita que usuarios ya autenticados vean la pantalla de login
 function PublicRoute({ children }) {
     return isAuthenticated() ? <Navigate to="/mapa" replace /> : children;
+}
+
+function RoleRoute({ children, role }) {
+    const user = getUser();
+    if (!isAuthenticated()) return <Navigate to="/login" replace />;
+    return user?.rol === role ? children : <Navigate to="/mapa" replace />;
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -45,9 +51,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                     <Route
                         path="/admin"
                         element={
-                            <PrivateRoute>
+                            <RoleRoute role="Gerente">
                                 <AdminDashboard />
-                            </PrivateRoute>
+                            </RoleRoute>
                         }
                     />
                     <Route

@@ -48,6 +48,15 @@ const FLOOR_EDIT_OPTIONS = [
 const TABS = [
     { id: 'reservas', label: 'Reservas' },
     { id: 'espacios', label: 'Espacios' },
+    { id: 'staff', label: 'Staff' },
+];
+
+const ROLE_OPTIONS = [
+    { value: 'Estudiante', label: 'Estudiante' },
+    { value: 'TecnicoLab', label: 'Técnico Lab' },
+    { value: 'Docente', label: 'Docente' },
+    { value: 'Conserje', label: 'Conserje' },
+    { value: 'Gerente', label: 'Gerente' },
 ];
 
 const WEEK_DAYS = [
@@ -82,6 +91,16 @@ function normalizeSchedule(schedule) {
     });
 }
 
+function emptyStaffForm() {
+    return {
+        email: '',
+        nombre: '',
+        apellidos: '',
+        rol: 'Estudiante',
+        departamento: '',
+    };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: category badge
 // ─────────────────────────────────────────────────────────────────────────────
@@ -99,6 +118,23 @@ function CategoryBadge({ category }) {
     const label = category === 'SalaComun' ? 'Sala Común' : (category ?? '—');
     return (
         <span className={`inline-block px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border ${style.bg} ${style.text} ${style.border}`}>
+            {label}
+        </span>
+    );
+}
+
+function StaffRoleBadge({ role }) {
+    const tone = {
+        Gerente: 'bg-blue-50 text-blue-700 border-blue-200',
+        Docente: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        TecnicoLab: 'bg-violet-50 text-violet-700 border-violet-200',
+        Conserje: 'bg-amber-50 text-amber-700 border-amber-200',
+        Estudiante: 'bg-slate-100 text-slate-700 border-slate-200',
+    }[role] ?? 'bg-slate-100 text-slate-700 border-slate-200';
+
+    const label = ROLE_OPTIONS.find(option => option.value === role)?.label ?? role;
+    return (
+        <span className={`inline-block px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border ${tone}`}>
             {label}
         </span>
     );
@@ -719,6 +755,349 @@ function EspaciosTab({ onToast }) {
     );
 }
 
+function validateStaff(form, isEditing) {
+    const errors = {};
+    if (!isEditing && !form.email.trim())
+        errors.email = 'El email es obligatorio.';
+    else if (!isEditing && (!form.email.includes('@') || !form.email.includes('.')))
+        errors.email = 'El email no tiene un formato válido.';
+
+    if (!form.nombre.trim())
+        errors.nombre = 'El nombre es obligatorio.';
+    if (!form.apellidos.trim())
+        errors.apellidos = 'Los apellidos son obligatorios.';
+    if (!form.rol)
+        errors.rol = 'Selecciona un rol.';
+    if ((form.rol === 'Docente' || form.rol === 'TecnicoLab') && !form.departamento.trim())
+        errors.departamento = 'Este rol requiere departamento.';
+
+    return errors;
+}
+
+function StaffModal({ persona, onClose, onSaved }) {
+    const isEditing = Boolean(persona);
+    const [form, setForm] = useState(() => persona ? ({
+        email: persona.email ?? '',
+        nombre: persona.nombre ?? '',
+        apellidos: persona.apellidos ?? '',
+        rol: persona.rol ?? 'Estudiante',
+        departamento: persona.departamento === 'Sin Departamento' ? '' : (persona.departamento ?? ''),
+    }) : emptyStaffForm());
+    const [errors, setErrors] = useState({});
+    const [serverErr, setServerErr] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleChange = (field, value) => {
+        setForm(current => ({ ...current, [field]: value }));
+        setErrors(current => {
+            const next = { ...current };
+            delete next[field];
+            return next;
+        });
+        setServerErr(null);
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        const validation = validateStaff(form, isEditing);
+        if (Object.keys(validation).length) {
+            setErrors(validation);
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            const payload = {
+                email: form.email.trim().toLowerCase(),
+                nombre: form.nombre.trim(),
+                apellidos: form.apellidos.trim(),
+                rol: form.rol,
+                departamento: form.departamento.trim(),
+            };
+
+            if (isEditing)
+                await api.put(`admin/staff/${encodeURIComponent(persona.email)}`, payload);
+            else
+                await api.post('admin/staff', payload);
+
+            onSaved(isEditing ? 'Persona actualizada correctamente.' : 'Persona creada correctamente.');
+        } catch (err) {
+            const data = err.response?.data;
+            let errMsg = isEditing ? 'Error al actualizar la persona.' : 'Error al crear la persona.';
+            if (typeof data === 'string') errMsg = data;
+            else if (data?.detail) errMsg = data.detail;
+            else if (data?.title) errMsg = data.title;
+            else if (data?.message) errMsg = data.message;
+            setServerErr(errMsg);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden">
+                <div className="bg-gradient-to-r from-slate-900 to-slate-700 px-7 py-6">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">
+                                {isEditing ? 'Editar personal' : 'Alta de personal'}
+                            </p>
+                            <h2 className="text-white text-xl font-black">{isEditing ? persona.email : 'Nueva persona'}</h2>
+                        </div>
+                        <button onClick={onClose} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+                            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <form onSubmit={handleSubmit} className="px-7 py-6 space-y-5">
+                    <div>
+                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Email</label>
+                        <input
+                            type="email"
+                            value={form.email}
+                            disabled={isEditing}
+                            onChange={e => handleChange('email', e.target.value)}
+                            className={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm text-gray-800 outline-none transition-all ${
+                                errors.email ? 'border-rose-400 bg-rose-50' : 'border-gray-200'
+                            } ${isEditing ? 'opacity-60 cursor-not-allowed' : 'focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500'}`}
+                        />
+                        {errors.email && <p className="text-rose-500 text-xs mt-1.5 font-medium">{errors.email}</p>}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Nombre</label>
+                            <input
+                                type="text"
+                                value={form.nombre}
+                                onChange={e => handleChange('nombre', e.target.value)}
+                                className={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm text-gray-800 outline-none transition-all focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 ${
+                                    errors.nombre ? 'border-rose-400 bg-rose-50' : 'border-gray-200'
+                                }`}
+                            />
+                            {errors.nombre && <p className="text-rose-500 text-xs mt-1.5 font-medium">{errors.nombre}</p>}
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Apellidos</label>
+                            <input
+                                type="text"
+                                value={form.apellidos}
+                                onChange={e => handleChange('apellidos', e.target.value)}
+                                className={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm text-gray-800 outline-none transition-all focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 ${
+                                    errors.apellidos ? 'border-rose-400 bg-rose-50' : 'border-gray-200'
+                                }`}
+                            />
+                            {errors.apellidos && <p className="text-rose-500 text-xs mt-1.5 font-medium">{errors.apellidos}</p>}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Rol</label>
+                            <select
+                                value={form.rol}
+                                onChange={e => handleChange('rol', e.target.value)}
+                                className={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm text-gray-800 outline-none transition-all focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 ${
+                                    errors.rol ? 'border-rose-400 bg-rose-50' : 'border-gray-200'
+                                }`}
+                            >
+                                {ROLE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                            </select>
+                            {errors.rol && <p className="text-rose-500 text-xs mt-1.5 font-medium">{errors.rol}</p>}
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Departamento</label>
+                            <input
+                                type="text"
+                                value={form.departamento}
+                                onChange={e => handleChange('departamento', e.target.value)}
+                                placeholder={form.rol === 'Docente' || form.rol === 'TecnicoLab' ? 'Obligatorio' : 'Opcional'}
+                                className={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm text-gray-800 outline-none transition-all focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 ${
+                                    errors.departamento ? 'border-rose-400 bg-rose-50' : 'border-gray-200'
+                                }`}
+                            />
+                            {errors.departamento && <p className="text-rose-500 text-xs mt-1.5 font-medium">{errors.departamento}</p>}
+                        </div>
+                    </div>
+
+                    {serverErr && (
+                        <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-sm text-rose-700 font-medium">
+                            {serverErr}
+                        </div>
+                    )}
+
+                    <div className="flex gap-3 pt-2">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={isLoading}
+                            className="flex-1 py-3 rounded-xl bg-blue-600 text-sm font-bold text-white hover:bg-blue-700 transition-colors disabled:opacity-60"
+                        >
+                            {isLoading ? 'Guardando...' : (isEditing ? 'Guardar cambios' : 'Crear persona')}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+function StaffTab({ onToast }) {
+    const [people, setPeople] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [search, setSearch] = useState('');
+    const [filterRole, setFilterRole] = useState('');
+    const [editTarget, setEditTarget] = useState(null);
+    const [isCreating, setIsCreating] = useState(false);
+
+    const fetchPeople = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const res = await api.get('admin/staff');
+            setPeople(res.data);
+        } catch {
+            onToast('error', 'Error al cargar el personal.');
+        } finally {
+            setIsLoading(false);
+        }
+    }, [onToast]);
+
+    useEffect(() => { fetchPeople(); }, [fetchPeople]);
+
+    const filtered = people.filter(person => {
+        const q = search.toLowerCase();
+        const fullName = `${person.nombre ?? ''} ${person.apellidos ?? ''}`.toLowerCase();
+        const matchSearch = q === '' || person.email?.toLowerCase().includes(q) || fullName.includes(q);
+        const matchRole = filterRole === '' || person.rol === filterRole;
+        return matchSearch && matchRole;
+    });
+
+    const handleSaved = (message) => {
+        setEditTarget(null);
+        setIsCreating(false);
+        onToast('success', message);
+        fetchPeople();
+    };
+
+    return (
+        <div>
+            <div className="flex flex-wrap items-center gap-3 mb-6">
+                <div className="flex-1 min-w-[180px]">
+                    <input
+                        type="text"
+                        placeholder="Buscar por email o nombre…"
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm"
+                    />
+                </div>
+                <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
+                    className="bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm">
+                    <option value="">Todos los roles</option>
+                    {ROLE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+                <button
+                    onClick={() => setIsCreating(true)}
+                    className="px-4 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
+                >
+                    Nueva persona
+                </button>
+                <button onClick={fetchPeople} title="Refrescar"
+                    className="p-2.5 bg-white border border-gray-200 rounded-xl text-gray-500 hover:bg-gray-50 transition-colors shadow-sm">
+                    <svg className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-gray-100 overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-slate-50/70 border-b border-gray-100">
+                                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Nombre</th>
+                                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Email</th>
+                                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Rol</th>
+                                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Departamento</th>
+                                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {isLoading ? (
+                                [...Array(5)].map((_, i) => (
+                                    <tr key={i}>
+                                        {[...Array(5)].map((__, j) => (
+                                            <td key={j} className="px-6 py-4">
+                                                <div className="h-4 bg-slate-100 rounded-full animate-pulse" />
+                                            </td>
+                                        ))}
+                                    </tr>
+                                ))
+                            ) : filtered.length === 0 ? (
+                                <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-400 text-sm">
+                                    No hay personas que coincidan con los filtros actuales.
+                                </td></tr>
+                            ) : filtered.map(person => (
+                                <tr key={person.email} className="hover:bg-slate-50/40 transition-colors group">
+                                    <td className="px-6 py-4">
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-bold text-gray-900">{person.nombre} {person.apellidos}</span>
+                                            <span className="text-[11px] text-gray-500">Cuenta gestionable por gerencia</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <span className="text-sm font-medium text-gray-700">{person.email}</span>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <StaffRoleBadge role={person.rol} />
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <span className="text-sm text-gray-600">{person.departamento || 'Sin Departamento'}</span>
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                        <button
+                                            onClick={() => setEditTarget(person)}
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 text-[11px] font-bold rounded-xl border border-blue-100 hover:bg-blue-600 hover:text-white transition-all hover:scale-105"
+                                        >
+                                            Editar
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {isCreating && (
+                <StaffModal
+                    onClose={() => setIsCreating(false)}
+                    onSaved={handleSaved}
+                />
+            )}
+
+            {editTarget && (
+                <StaffModal
+                    persona={editTarget}
+                    onClose={() => setEditTarget(null)}
+                    onSaved={handleSaved}
+                />
+            )}
+        </div>
+    );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Main AdminDashboard
 // ─────────────────────────────────────────────────────────────────────────────
@@ -860,6 +1239,9 @@ export default function AdminDashboard() {
                     )}
                     {activeTab === 'espacios' && (
                         <EspaciosTab onToast={showToast} />
+                    )}
+                    {activeTab === 'staff' && (
+                        <StaffTab onToast={showToast} />
                     )}
                 </div>
             </main>
