@@ -50,6 +50,38 @@ const TABS = [
     { id: 'espacios', label: 'Espacios' },
 ];
 
+const WEEK_DAYS = [
+    { value: 1, label: 'Lun' },
+    { value: 2, label: 'Mar' },
+    { value: 3, label: 'Mié' },
+    { value: 4, label: 'Jue' },
+    { value: 5, label: 'Vie' },
+    { value: 6, label: 'Sáb' },
+    { value: 0, label: 'Dom' },
+];
+
+function createDefaultSchedule() {
+    return WEEK_DAYS.map(day => ({
+        diaSemana: day.value,
+        activo: true,
+        horaInicio: '00:00',
+        horaFin: '23:59',
+    }));
+}
+
+function normalizeSchedule(schedule) {
+    const incoming = Array.isArray(schedule) ? schedule : [];
+    return WEEK_DAYS.map(day => {
+        const found = incoming.find(item => item.diaSemana === day.value);
+        return {
+            diaSemana: day.value,
+            activo: found?.activo ?? true,
+            horaInicio: found?.horaInicio ?? '00:00',
+            horaFin: found?.horaFin ?? '23:59',
+        };
+    });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: category badge
 // ─────────────────────────────────────────────────────────────────────────────
@@ -87,15 +119,24 @@ function validate(form) {
         errors.aforo = 'El aforo debe ser un número mayor que 0.';
     if (!form.categoria)
         errors.categoria = 'Selecciona una categoría.';
+    if (form.esReservable && !form.horarioReserva.some(day => day.activo))
+        errors.horarioReserva = 'Un espacio reservable debe tener al menos un día activo.';
+    form.horarioReserva.forEach(day => {
+        if (day.activo && day.horaInicio >= day.horaFin)
+            errors.horarioReserva = 'Cada día activo debe tener una hora de inicio anterior a la de fin.';
+    });
     return errors;
 }
 
 function EditSpaceModal({ espacio, onClose, onSaved }) {
+    const isPhysicalDespacho = (espacio.tipoFisico ?? espacio.categoriaReserva) === 'Despacho';
     const [form, setForm] = useState({
         nombre:   espacio.nombre ?? '',
         aforo:    String(espacio.aforo?.valor ?? espacio.aforo ?? ''),
         planta:   String(espacio.planta?.valor ?? espacio.planta ?? '0'),
         categoria: espacio.categoriaReserva ?? espacio.tipoFisico ?? 'Aula',
+        esReservable: isPhysicalDespacho ? false : (espacio.esReservable ?? true),
+        horarioReserva: normalizeSchedule(espacio.horarioReserva ?? createDefaultSchedule()),
     });
     const [errors,    setErrors]    = useState({});
     const [isLoading, setIsLoading] = useState(false);
@@ -104,6 +145,21 @@ function EditSpaceModal({ espacio, onClose, onSaved }) {
     const handleChange = (field, value) => {
         setForm(f => ({ ...f, [field]: value }));
         setErrors(e => { const ne = { ...e }; delete ne[field]; return ne; });
+        setServerErr(null);
+    };
+
+    const handleScheduleChange = (diaSemana, field, value) => {
+        setForm(current => ({
+            ...current,
+            horarioReserva: current.horarioReserva.map(day =>
+                day.diaSemana === diaSemana ? { ...day, [field]: value } : day
+            ),
+        }));
+        setErrors(current => {
+            const next = { ...current };
+            delete next.horarioReserva;
+            return next;
+        });
         setServerErr(null);
     };
 
@@ -119,6 +175,8 @@ function EditSpaceModal({ espacio, onClose, onSaved }) {
                 aforo:    parseInt(form.aforo, 10),
                 planta:   parseInt(form.planta, 10),
                 categoria: form.categoria,
+                esReservable: isPhysicalDespacho ? false : form.esReservable,
+                horarioReserva: form.horarioReserva,
             });
             onSaved();
         } catch (err) {
@@ -139,7 +197,7 @@ function EditSpaceModal({ espacio, onClose, onSaved }) {
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
             {/* Panel */}
-            <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden">
                 {/* Header */}
                 <div className="bg-gradient-to-r from-slate-900 to-slate-700 px-7 py-6">
                     <div className="flex items-center justify-between">
@@ -159,7 +217,7 @@ function EditSpaceModal({ espacio, onClose, onSaved }) {
                 </div>
 
                 {/* Body */}
-                <form onSubmit={handleSubmit} className="px-7 py-6 space-y-5" noValidate>
+                <form onSubmit={handleSubmit} className="px-7 py-6 space-y-5 max-h-[80vh] overflow-y-auto" noValidate>
                     {/* Nombre */}
                     <div>
                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5" htmlFor="edit-nombre">
@@ -229,6 +287,87 @@ function EditSpaceModal({ espacio, onClose, onSaved }) {
                             {CATEGORY_EDIT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
                         {errors.categoria && <p className="text-rose-500 text-xs mt-1.5 font-medium">{errors.categoria}</p>}
+                    </div>
+
+                    <div className="rounded-2xl border border-gray-200 bg-slate-50/70 p-4 space-y-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Reservabilidad</p>
+                                <p className="text-sm font-semibold text-gray-800">Controla si el espacio admite reservas puntuales.</p>
+                            </div>
+                            <label className={`inline-flex items-center gap-3 px-4 py-2 rounded-xl border text-sm font-semibold ${
+                                isPhysicalDespacho
+                                    ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                                    : 'bg-white border-gray-200 text-gray-700 cursor-pointer'
+                            }`}>
+                                <input
+                                    type="checkbox"
+                                    checked={isPhysicalDespacho ? false : form.esReservable}
+                                    disabled={isPhysicalDespacho}
+                                    onChange={e => handleChange('esReservable', e.target.checked)}
+                                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                {isPhysicalDespacho ? 'Despacho no reservable' : (form.esReservable ? 'Reservable' : 'No reservable')}
+                            </label>
+                        </div>
+                        {isPhysicalDespacho && (
+                            <p className="text-xs text-amber-700 font-medium">Los despachos no pueden hacerse reservables según la normativa del proyecto.</p>
+                        )}
+                    </div>
+
+                    <div>
+                        <div className="flex items-center justify-between gap-3 mb-3">
+                            <div>
+                                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Horario de Reserva</p>
+                                <p className="text-sm font-semibold text-gray-800">Define las franjas semanales en las que se puede reservar este espacio.</p>
+                            </div>
+                            <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                                {form.horarioReserva.filter(day => day.activo).length} días activos
+                            </span>
+                        </div>
+
+                        <div className="rounded-2xl border border-gray-200 overflow-hidden">
+                            <div className="grid grid-cols-[84px_90px_1fr_1fr] bg-slate-100/80 px-4 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest">
+                                <span>Día</span>
+                                <span>Activo</span>
+                                <span>Inicio</span>
+                                <span>Fin</span>
+                            </div>
+                            <div className="divide-y divide-gray-100">
+                                {WEEK_DAYS.map(day => {
+                                    const schedule = form.horarioReserva.find(item => item.diaSemana === day.value);
+                                    return (
+                                        <div key={day.value} className="grid grid-cols-[84px_90px_1fr_1fr] items-center gap-3 px-4 py-3 bg-white">
+                                            <span className="text-sm font-bold text-gray-800">{day.label}</span>
+                                            <label className="inline-flex items-center gap-2 text-xs font-semibold text-gray-600">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={schedule?.activo ?? false}
+                                                    onChange={e => handleScheduleChange(day.value, 'activo', e.target.checked)}
+                                                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                />
+                                                {schedule?.activo ? 'Sí' : 'No'}
+                                            </label>
+                                            <input
+                                                type="time"
+                                                value={schedule?.horaInicio ?? '00:00'}
+                                                disabled={!schedule?.activo}
+                                                onChange={e => handleScheduleChange(day.value, 'horaInicio', e.target.value)}
+                                                className="w-full bg-slate-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 disabled:opacity-50"
+                                            />
+                                            <input
+                                                type="time"
+                                                value={schedule?.horaFin ?? '23:59'}
+                                                disabled={!schedule?.activo}
+                                                onChange={e => handleScheduleChange(day.value, 'horaFin', e.target.value)}
+                                                className="w-full bg-slate-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 disabled:opacity-50"
+                                            />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                        {errors.horarioReserva && <p className="text-rose-500 text-xs mt-2 font-medium">{errors.horarioReserva}</p>}
                     </div>
 
                     {/* Server Error */}
@@ -497,6 +636,7 @@ function EspaciosTab({ onToast }) {
                                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Planta</th>
                                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Aforo</th>
                                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Categoría</th>
+                                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Reserva</th>
                                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Acciones</th>
                             </tr>
                         </thead>
@@ -504,7 +644,7 @@ function EspaciosTab({ onToast }) {
                             {isLoading ? (
                                 [...Array(6)].map((_, i) => (
                                     <tr key={i}>
-                                        {[...Array(6)].map((__, j) => (
+                                        {[...Array(7)].map((__, j) => (
                                             <td key={j} className="px-6 py-4">
                                                 <div className="h-4 bg-slate-100 rounded-full animate-pulse" />
                                             </td>
@@ -512,7 +652,7 @@ function EspaciosTab({ onToast }) {
                                     </tr>
                                 ))
                             ) : filtered.length === 0 ? (
-                                <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-400 text-sm">
+                                <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-400 text-sm">
                                     No se encontraron espacios con los filtros actuales.
                                 </td></tr>
                             ) : filtered.map(s => {
@@ -520,6 +660,7 @@ function EspaciosTab({ onToast }) {
                                     ?? `Planta ${getFloorVal(s)}`;
                                 const aforo = s.aforo?.valor ?? s.aforo;
                                 const cat   = s.categoriaReserva ?? s.tipoFisico;
+                                const reservable = s.esReservable ?? true;
                                 return (
                                     <tr key={s.codigoEspacio} className="hover:bg-slate-50/40 transition-colors group">
                                         <td className="px-6 py-4">
@@ -536,6 +677,15 @@ function EspaciosTab({ onToast }) {
                                         </td>
                                         <td className="px-6 py-4">
                                             <CategoryBadge category={cat} />
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <span className={`px-2.5 py-1 text-[10px] font-black rounded-full border uppercase ${
+                                                reservable
+                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                    : 'bg-rose-50 text-rose-600 border-rose-200'
+                                            }`}>
+                                                {reservable ? 'Activa' : 'Bloqueada'}
+                                            </span>
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             <button

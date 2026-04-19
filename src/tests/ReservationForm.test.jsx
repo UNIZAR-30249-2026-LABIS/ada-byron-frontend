@@ -81,4 +81,42 @@ describe('ReservationForm Component Tests', () => {
         expect(await screen.findByText('Reserva confirmada.')).toBeInTheDocument();
         expect(createReservation).toHaveBeenCalledTimes(1);
     });
+
+    it('5. Bloquea en frontend una reserva cuando el espacio está marcado como no reservable', async () => {
+        render(<ReservationForm selectedSpace={{ ...mockSpace, esReservable: false }} onClose={mockOnClose} />);
+
+        expect(screen.getByText('Reservas desactivadas')).toBeInTheDocument();
+
+        const submitBtn = screen.getByRole('button', { name: /Confirmar Reserva/i });
+        expect(submitBtn).toBeDisabled();
+        expect(createReservation).not.toHaveBeenCalled();
+    });
+
+    it('6. Bloquea en frontend una reserva fuera del horario permitido', async () => {
+        const spaceWithSchedule = {
+            ...mockSpace,
+            esReservable: true,
+            horarioReserva: [
+                { diaSemana: 1, activo: true, horaInicio: '09:00', horaFin: '13:00' },
+                { diaSemana: 2, activo: true, horaInicio: '09:00', horaFin: '13:00' },
+                { diaSemana: 3, activo: true, horaInicio: '09:00', horaFin: '13:00' },
+                { diaSemana: 4, activo: true, horaInicio: '09:00', horaFin: '13:00' },
+                { diaSemana: 5, activo: true, horaInicio: '09:00', horaFin: '13:00' },
+                { diaSemana: 6, activo: false, horaInicio: '09:00', horaFin: '13:00' },
+                { diaSemana: 0, activo: false, horaInicio: '09:00', horaFin: '13:00' },
+            ],
+        };
+
+        const { container } = render(<ReservationForm selectedSpace={spaceWithSchedule} onClose={mockOnClose} />);
+
+        fireEvent.change(container.querySelector('input[name="fecha"]'), { target: { value: '2026-04-20' } });
+        fireEvent.change(container.querySelector('input[name="horaInicio"]'), { target: { value: '08:00' } });
+        fireEvent.change(container.querySelector('input[name="horaFin"]'), { target: { value: '10:00' } });
+
+        expect(await screen.findByText('Solo se puede reservar entre 09:00 y 13:00 para esa fecha.')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: /Confirmar Reserva/i }));
+
+        expect(createReservation).not.toHaveBeenCalled();
+    });
 });
