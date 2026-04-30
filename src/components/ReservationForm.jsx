@@ -2,8 +2,48 @@ import { useMemo, useState } from 'react';
 import { createReservation } from '../services/api';
 import { getUser } from '../services/authService';
 
+const WEEK_DAYS = [
+    { value: 1, label: 'Lunes' },
+    { value: 2, label: 'Martes' },
+    { value: 3, label: 'Miércoles' },
+    { value: 4, label: 'Jueves' },
+    { value: 5, label: 'Viernes' },
+    { value: 6, label: 'Sábado' },
+    { value: 0, label: 'Domingo' },
+];
+
+function normalizeSchedule(schedule) {
+    const incoming = Array.isArray(schedule) ? schedule : [];
+    return WEEK_DAYS.map(day => {
+        const found = incoming.find(item => item.diaSemana === day.value);
+        return {
+            diaSemana: day.value,
+            activo: found?.activo ?? true,
+            horaInicio: found?.horaInicio ?? '00:00',
+            horaFin: found?.horaFin ?? '23:59',
+        };
+    });
+}
+
+function getSpaceSchedule(space) {
+    return normalizeSchedule(space?.horarioReserva);
+}
+
+function getScheduleSummary(space) {
+    if (!space) return [];
+    if (space.esReservable === false) return ['Reservas desactivadas'];
+
+    return getSpaceSchedule(space)
+        .filter(day => day.activo)
+        .map(day => {
+            const label = WEEK_DAYS.find(item => item.value === day.diaSemana)?.label ?? 'Día';
+            return `${label}: ${day.horaInicio} - ${day.horaFin}`;
+        });
+}
+
 export default function ReservationForm({ selectedSpace, onClose }) {
     const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+    const scheduleSummary = useMemo(() => getScheduleSummary(selectedSpace), [selectedSpace]);
     const [form, setForm] = useState({
         uso: '',
         attendeeCount: 1,
@@ -14,6 +54,29 @@ export default function ReservationForm({ selectedSpace, onClose }) {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const availabilityMessage = useMemo(() => {
+        if (!selectedSpace || !form.fecha || !form.horaInicio || !form.horaFin) return '';
+        if (selectedSpace.esReservable === false) return 'Este espacio ya no admite reservas.';
+
+        const selectedDate = new Date(`${form.fecha}T12:00:00`);
+        if (Number.isNaN(selectedDate.getTime())) return '';
+
+        const schedule = getSpaceSchedule(selectedSpace);
+        const jsDay = selectedDate.getDay();
+        const dayConfig = schedule.find(day => day.diaSemana === jsDay);
+
+        if (!dayConfig?.activo) {
+            const dayLabel = WEEK_DAYS.find(day => day.value === jsDay)?.label?.toLowerCase() ?? 'día seleccionado';
+            return `No se permiten reservas para el ${dayLabel}.`;
+        }
+
+        if (form.horaInicio < dayConfig.horaInicio || form.horaFin > dayConfig.horaFin) {
+            return `Solo se puede reservar entre ${dayConfig.horaInicio} y ${dayConfig.horaFin} para esa fecha.`;
+        }
+
+        return '';
+    }, [selectedSpace, form.fecha, form.horaInicio, form.horaFin]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -32,6 +95,8 @@ export default function ReservationForm({ selectedSpace, onClose }) {
         const fin = new Date(`${form.fecha}T${form.horaFin}`);
         if (Number.isNaN(inicio.getTime()) || Number.isNaN(fin.getTime())) return 'Las horas introducidas no son válidas.';
         if (fin <= inicio) return 'La hora de fin debe ser posterior a la de inicio.';
+        if (selectedSpace.esReservable === false) return 'Este espacio ya no admite reservas.';
+        if (availabilityMessage) return availabilityMessage;
 
         return '';
     };
@@ -114,6 +179,33 @@ export default function ReservationForm({ selectedSpace, onClose }) {
                         <span className="px-1.5 py-0.5 bg-white border border-gray-200 rounded text-gray-600 font-bold shadow-sm">
                             P.{selectedSpace.altura || selectedSpace.floor || 'X'}
                         </span>
+                        <span className={`px-1.5 py-0.5 border rounded font-bold shadow-sm ${selectedSpace.esReservable === false ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
+                            {selectedSpace.esReservable === false ? 'Bloqueado' : 'Reservable'}
+                        </span>
+                    </div>
+
+                    <div className="mt-2 rounded-lg border border-slate-200 bg-white/80 px-2 py-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                            Horario permitido
+                        </p>
+                        <div className="flex flex-col gap-1">
+                            {scheduleSummary.length > 0 ? (
+                                scheduleSummary.slice(0, 3).map(line => (
+                                    <span key={line} className="text-[10px] text-slate-600 leading-tight">
+                                        {line}
+                                    </span>
+                                ))
+                            ) : (
+                                <span className="text-[10px] text-slate-500 leading-tight">
+                                    Sin información de horario para este espacio.
+                                </span>
+                            )}
+                            {scheduleSummary.length > 3 && (
+                                <span className="text-[10px] text-slate-400 leading-tight">
+                                    +{scheduleSummary.length - 3} días más
+                                </span>
+                            )}
+                        </div>
                     </div>
                 </div>
             ) : (
@@ -191,6 +283,15 @@ export default function ReservationForm({ selectedSpace, onClose }) {
                     </div>
                 </div>
 
+                {availabilityMessage && (
+                    <div className="p-2 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-[10px] font-semibold shadow-sm flex items-start gap-1.5 leading-tight">
+                        <svg className="w-3.5 h-3.5 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86l-7.5 13A1 1 0 003.66 18h16.68a1 1 0 00.87-1.5l-7.5-13a1 1 0 00-1.74 0z" />
+                        </svg>
+                        {availabilityMessage}
+                    </div>
+                )}
+
                 {error && (
                     <div className="p-2 bg-red-50 text-red-700 border border-red-100 rounded-lg text-[10px] font-semibold shadow-sm flex items-start gap-1.5 leading-tight">
                         <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -211,7 +312,7 @@ export default function ReservationForm({ selectedSpace, onClose }) {
 
                 <button
                     type="submit"
-                    disabled={!selectedSpace || isSubmitting}
+                    disabled={!selectedSpace || isSubmitting || selectedSpace.esReservable === false}
                     className="w-full mt-1.5 py-2.5 bg-[#2563eb] text-white text-[11px] font-bold rounded-lg hover:bg-blue-700 hover:shadow-md hover:-translate-y-0.5 disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none disabled:translate-y-0 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
                 >
                     {isSubmitting ? (
