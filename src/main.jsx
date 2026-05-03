@@ -8,7 +8,7 @@ import MapPage   from './pages/MapPage';
 import SearchPage from './pages/SearchPage';
 import AdminDashboard from './pages/AdminDashboard';
 import MisReservas from './pages/MyReservationsPage';
-import { getUser, isAuthenticated } from './services/authService';
+import { getUser, isAuthenticated, isManager } from './services/authService';
 import { NotificationProvider } from './services/NotificationProvider';
 
 import { Toaster } from 'react-hot-toast';
@@ -25,6 +25,7 @@ function PublicRoute({ children }) {
 function RoleRoute({ children, role }) {
     const user = getUser();
     if (!isAuthenticated()) return <Navigate to="/login" replace />;
+    if (role === 'Gerente') return isManager(user) ? children : <Navigate to="/mapa" replace />;
     return user?.rol === role ? children : <Navigate to="/mapa" replace />;
 }
 

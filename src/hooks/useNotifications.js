@@ -48,6 +48,15 @@ export function useNotifications() {
                     setNotifications(prev => [newNotification, ...prev]);
                 });
 
+                // Listener para el Worker PBI-14
+                connection.on('ReceiveCancellation', (message) => {
+                    import('react-hot-toast').then(({ default: toast }) => {
+                        toast.error(`Cancelación automática:\n${message}`, {
+                            duration: 8000,
+                        });
+                    });
+                });
+
             } catch (err) {
                 console.error('SignalR: Error de conexión', err);
             }
@@ -59,6 +68,7 @@ export function useNotifications() {
 
         return () => {
             connection.off('ReservaAnulada');
+            connection.off('ReceiveCancellation');
             connection.stop();
         };
     }, [connection]);

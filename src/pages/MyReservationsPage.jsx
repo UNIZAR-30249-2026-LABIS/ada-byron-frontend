@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
-import { getUser, logout } from '../services/authService';
+import { getUser, isManager as hasManagerRole, logout } from '../services/authService';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -239,7 +239,7 @@ export default function MisReservas() {
                         <span className="text-sm font-bold text-gray-900 border-b-2 border-blue-600 pb-0.5">
                             Mis Reservas
                         </span>
-                        {user?.rol === 'Gerente' && (
+                        {hasManagerRole(user) && (
                             <button
                                 onClick={() => navigate('/admin')}
                                 className="text-sm font-bold text-blue-600 hover:text-blue-800 transition-colors"

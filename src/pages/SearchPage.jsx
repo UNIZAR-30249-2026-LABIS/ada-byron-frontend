@@ -4,7 +4,7 @@ import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import InteractiveMap from '../components/InteractiveMap';
 import ReservationForm from '../components/ReservationForm';
-import { getUser } from '../services/authService';
+import { getUser, isManager as hasManagerRole } from '../services/authService';
 
 const FLOOR_OPTIONS = [
     { value: '', label: 'Cualquier planta' },
@@ -34,7 +34,7 @@ export default function SearchPage() {
 
     useEffect(() => {
         const user = getUser();
-        setIsManager(user?.rol === 'Gerente');
+        setIsManager(hasManagerRole(user));
     }, []);
 
     // Filtros

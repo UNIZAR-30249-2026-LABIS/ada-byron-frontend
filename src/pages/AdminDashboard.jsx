@@ -54,11 +54,57 @@ const TABS = [
 
 const ROLE_OPTIONS = [
     { value: 'Estudiante', label: 'Estudiante' },
-    { value: 'TecnicoLab', label: 'Técnico Lab' },
-    { value: 'Docente', label: 'Docente' },
+    { value: 'InvestigadorContratado', label: 'Investigador contratado' },
+    { value: 'DocenteInvestigador', label: 'Docente-investigador' },
     { value: 'Conserje', label: 'Conserje' },
+    { value: 'TecnicoLaboratorio', label: 'Técnico laboratorio' },
     { value: 'Gerente', label: 'Gerente' },
 ];
+
+const DEPARTMENT_OPTIONS = [
+    { value: '', label: 'Sin departamento' },
+    { value: 'Informática', label: 'Informática' },
+    { value: 'Ing. de Sistemas e Ing. Electrónica y Comunicaciones', label: 'Ing. Sistemas e Ing. Electrónica y Comunicaciones' },
+];
+
+function getAssignmentOptions(categoria) {
+    switch (categoria) {
+        case 'Aula':
+        case 'SalaComun':
+            return [{ value: 'Eina', label: 'EINA (acceso general)' }];
+        case 'Seminario':
+        case 'Laboratorio':
+            return [
+                { value: 'Eina', label: 'EINA (acceso general)' },
+                { value: 'Departamento', label: 'Departamento' },
+            ];
+        case 'Despacho':
+            return [
+                { value: 'Departamento', label: 'Departamento' },
+                { value: 'Personas', label: 'Personas específicas' },
+            ];
+        default:
+            return [
+                { value: 'Eina', label: 'EINA (acceso general)' },
+                { value: 'Departamento', label: 'Departamento' },
+                { value: 'Personas', label: 'Personas específicas' },
+            ];
+    }
+}
+
+function defaultAssignmentForCategoria(categoria) {
+    switch (categoria) {
+        case 'Aula':
+        case 'SalaComun':
+        case 'Seminario':
+        case 'Laboratorio':
+            return 'Eina';
+        case 'Despacho':
+            return 'Departamento';
+        default:
+            return 'Eina';
+    }
+}
 
 const WEEK_DAYS = [
     { value: 1, label: 'Lun' },
@@ -99,6 +145,7 @@ function emptyStaffForm() {
         apellidos: '',
         rol: 'Estudiante',
         departamento: '',
+        esGerente: false,
     };
 }
 
@@ -124,16 +171,18 @@ function CategoryBadge({ category }) {
     );
 }
 
-function StaffRoleBadge({ role }) {
+function StaffRoleBadge({ role, esGerente }) {
     const tone = {
         Gerente: 'bg-blue-50 text-blue-700 border-blue-200',
-        Docente: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-        TecnicoLab: 'bg-violet-50 text-violet-700 border-violet-200',
+        DocenteInvestigador: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        InvestigadorContratado: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+        TecnicoLaboratorio: 'bg-violet-50 text-violet-700 border-violet-200',
         Conserje: 'bg-amber-50 text-amber-700 border-amber-200',
         Estudiante: 'bg-slate-100 text-slate-700 border-slate-200',
     }[role] ?? 'bg-slate-100 text-slate-700 border-slate-200';
 
-    const label = ROLE_OPTIONS.find(option => option.value === role)?.label ?? role;
+    const baseLabel = ROLE_OPTIONS.find(option => option.value === role)?.label ?? role;
+    const label = esGerente && role !== 'Gerente' ? `${baseLabel} + Gerente` : baseLabel;
     return (
         <span className={`inline-block px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border ${tone}`}>
             {label}
@@ -168,21 +217,41 @@ function validate(form) {
         if (isNaN(pct) || pct < 0 || pct > 100)
             errors.porcentajeEspecifico = 'El porcentaje debe ser un número entre 0 y 100.';
     }
+    // HU-09: asignación del espacio
+    const allowedAssignment = getAssignmentOptions(form.categoria);
+    if (!allowedAssignment.some(o => o.value === form.tipoAsignacion))
+        errors.tipoAsignacion = `La categoría '${form.categoria}' no admite el tipo de asignación seleccionado.`;
+    if (form.tipoAsignacion === 'Departamento' && !form.departamentoAsignado)
+        errors.departamentoAsignado = 'Selecciona un departamento válido.';
+    if (form.tipoAsignacion === 'Personas') {
+        const personas = form.personasAsignadas.split('\n').map(s => s.trim()).filter(Boolean);
+        if (personas.length === 0)
+            errors.personasAsignadas = 'Especifica al menos una persona (un email por línea).';
+    }
     return errors;
 }
 
 function EditSpaceModal({ espacio, onClose, onSaved }) {
     const isPhysicalDespacho = (espacio.tipoFisico ?? espacio.categoriaReserva) === 'Despacho';
+    const initialCategoria = espacio.categoriaReserva ?? espacio.tipoFisico ?? 'Aula';
     const [form, setForm] = useState({
         nombre:   espacio.nombre ?? '',
         aforo:    String(espacio.aforo?.valor ?? espacio.aforo ?? ''),
         planta:   String(espacio.planta?.valor ?? espacio.planta ?? '0'),
-        categoria: espacio.categoriaReserva ?? espacio.tipoFisico ?? 'Aula',
+        categoria: initialCategoria,
         esReservable: isPhysicalDespacho ? false : (espacio.esReservable ?? true),
         horarioReserva: normalizeSchedule(espacio.horarioReserva ?? createDefaultSchedule()),
         // PBI-12: porcentaje específico ('' = campo vacío → heredar del edificio)
         porcentajeEspecifico: espacio.porcentajeOcupacionEspecifico != null
             ? String(espacio.porcentajeOcupacionEspecifico)
+            : '',
+        // HU-09: asignación del espacio
+        tipoAsignacion: espacio.tipoAsignacion ?? defaultAssignmentForCategoria(initialCategoria),
+        departamentoAsignado: (!espacio.departamento?.isNull && espacio.departamento?.nombre)
+            ? espacio.departamento.nombre
+            : '',
+        personasAsignadas: Array.isArray(espacio.personasAsignadas)
+            ? espacio.personasAsignadas.join('\n')
             : '',
     });
     const [errors,    setErrors]    = useState({});
@@ -190,7 +259,15 @@ function EditSpaceModal({ espacio, onClose, onSaved }) {
     const [serverErr, setServerErr] = useState(null);
 
     const handleChange = (field, value) => {
-        setForm(f => ({ ...f, [field]: value }));
+        setForm(f => {
+            const next = { ...f, [field]: value };
+            if (field === 'categoria') {
+                const allowedOptions = getAssignmentOptions(value);
+                const currentIsAllowed = allowedOptions.some(o => o.value === next.tipoAsignacion);
+                if (!currentIsAllowed) next.tipoAsignacion = allowedOptions[0].value;
+            }
+            return next;
+        });
         setErrors(e => { const ne = { ...e }; delete ne[field]; return ne; });
         setServerErr(null);
     };
@@ -217,7 +294,7 @@ function EditSpaceModal({ espacio, onClose, onSaved }) {
 
         setIsLoading(true);
         try {
-            // 1. Actualizar los datos principales del espacio
+            // 1. Actualizar los datos principales del espacio (incluyendo asignación HU-09)
             await api.put(`Admin/spaces/${encodeURIComponent(espacio.codigoEspacio)}`, {
                 nombre:   form.nombre.trim(),
                 aforo:    parseInt(form.aforo, 10),
@@ -225,6 +302,11 @@ function EditSpaceModal({ espacio, onClose, onSaved }) {
                 categoria: form.categoria,
                 esReservable: isPhysicalDespacho ? false : form.esReservable,
                 horarioReserva: form.horarioReserva,
+                tipoAsignacion: form.tipoAsignacion,
+                departamentoAsignado: form.tipoAsignacion === 'Departamento' ? form.departamentoAsignado : null,
+                personasAsignadas: form.tipoAsignacion === 'Personas'
+                    ? form.personasAsignadas.split('\n').map(s => s.trim()).filter(Boolean)
+                    : [],
             });
 
             // 2. PBI-12: Actualizar el porcentaje específico (endpoint dedicado)
@@ -343,6 +425,64 @@ function EditSpaceModal({ espacio, onClose, onSaved }) {
                             {CATEGORY_EDIT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
                         {errors.categoria && <p className="text-rose-500 text-xs mt-1.5 font-medium">{errors.categoria}</p>}
+                    </div>
+
+                    {/* ── HU-09: Asignación del espacio ───────────────────────── */}
+                    <div className="rounded-2xl border border-amber-100 bg-amber-50/40 p-4 space-y-3">
+                        <div>
+                            <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-0.5">Asignación del Espacio (HU-09)</p>
+                            <p className="text-sm font-semibold text-gray-800">Define a quién pertenece o quién puede usar este espacio.</p>
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Tipo de Asignación</label>
+                            <select
+                                value={form.tipoAsignacion}
+                                onChange={e => handleChange('tipoAsignacion', e.target.value)}
+                                className={`w-full bg-white border rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none transition-all focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 appearance-none cursor-pointer ${
+                                    errors.tipoAsignacion ? 'border-rose-400 bg-rose-50' : 'border-gray-200'
+                                }`}
+                            >
+                                {getAssignmentOptions(form.categoria).map(o => (
+                                    <option key={o.value} value={o.value}>{o.label}</option>
+                                ))}
+                            </select>
+                            {errors.tipoAsignacion && <p className="text-rose-500 text-xs mt-1.5 font-medium">{errors.tipoAsignacion}</p>}
+                        </div>
+                        {form.tipoAsignacion === 'Departamento' && (
+                            <div>
+                                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Departamento</label>
+                                <select
+                                    value={form.departamentoAsignado}
+                                    onChange={e => handleChange('departamentoAsignado', e.target.value)}
+                                    className={`w-full bg-white border rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none transition-all focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 appearance-none cursor-pointer ${
+                                        errors.departamentoAsignado ? 'border-rose-400 bg-rose-50' : 'border-gray-200'
+                                    }`}
+                                >
+                                    <option value="">Selecciona un departamento…</option>
+                                    {DEPARTMENT_OPTIONS.filter(d => d.value).map(d => (
+                                        <option key={d.value} value={d.value}>{d.label}</option>
+                                    ))}
+                                </select>
+                                {errors.departamentoAsignado && <p className="text-rose-500 text-xs mt-1.5 font-medium">{errors.departamentoAsignado}</p>}
+                            </div>
+                        )}
+                        {form.tipoAsignacion === 'Personas' && (
+                            <div>
+                                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">
+                                    Personas asignadas <span className="text-gray-400 normal-case font-normal">(un email por línea)</span>
+                                </label>
+                                <textarea
+                                    rows={3}
+                                    value={form.personasAsignadas}
+                                    onChange={e => handleChange('personasAsignadas', e.target.value)}
+                                    placeholder="usuario@unizar.es&#10;otro@unizar.es"
+                                    className={`w-full bg-white border rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none transition-all focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 resize-none ${
+                                        errors.personasAsignadas ? 'border-rose-400 bg-rose-50' : 'border-gray-200'
+                                    }`}
+                                />
+                                {errors.personasAsignadas && <p className="text-rose-500 text-xs mt-1.5 font-medium">{errors.personasAsignadas}</p>}
+                            </div>
+                        )}
                     </div>
 
                     {/* ── PBI-12: Porcentaje de ocupación específico ───────────── */}
@@ -919,7 +1059,7 @@ function validateStaff(form, isEditing) {
         errors.apellidos = 'Los apellidos son obligatorios.';
     if (!form.rol)
         errors.rol = 'Selecciona un rol.';
-    if ((form.rol === 'Docente' || form.rol === 'TecnicoLab') && !form.departamento.trim())
+    if ((form.rol === 'InvestigadorContratado' || form.rol === 'DocenteInvestigador' || form.rol === 'TecnicoLaboratorio') && !form.departamento.trim())
         errors.departamento = 'Este rol requiere departamento.';
 
     return errors;
@@ -933,6 +1073,7 @@ function StaffModal({ persona, onClose, onSaved }) {
         apellidos: persona.apellidos ?? '',
         rol: persona.rol ?? 'Estudiante',
         departamento: persona.departamento === 'Sin Departamento' ? '' : (persona.departamento ?? ''),
+        esGerente: Boolean(persona.esGerente || persona.roles?.includes('Gerente')),
     }) : emptyStaffForm());
     const [errors, setErrors] = useState({});
     const [serverErr, setServerErr] = useState(null);
@@ -964,6 +1105,7 @@ function StaffModal({ persona, onClose, onSaved }) {
                 apellidos: form.apellidos.trim(),
                 rol: form.rol,
                 departamento: form.departamento.trim(),
+                esGerente: form.esGerente,
             };
 
             if (isEditing)
@@ -1062,16 +1204,29 @@ function StaffModal({ persona, onClose, onSaved }) {
                             {errors.rol && <p className="text-rose-500 text-xs mt-1.5 font-medium">{errors.rol}</p>}
                         </div>
                         <div>
+                            <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Gerencia</label>
+                            <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-slate-50 px-4 py-3 text-sm text-gray-700">
+                                <input
+                                    type="checkbox"
+                                    checked={form.esGerente}
+                                    onChange={e => handleChange('esGerente', e.target.checked)}
+                                />
+                                Permisos de gerente
+                            </label>
+                        </div>
+                        <div className="col-span-2">
                             <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Departamento</label>
-                            <input
-                                type="text"
+                            <select
                                 value={form.departamento}
                                 onChange={e => handleChange('departamento', e.target.value)}
-                                placeholder={form.rol === 'Docente' || form.rol === 'TecnicoLab' ? 'Obligatorio' : 'Opcional'}
-                                className={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm text-gray-800 outline-none transition-all focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 ${
+                                className={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm text-gray-800 outline-none transition-all focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 appearance-none cursor-pointer ${
                                     errors.departamento ? 'border-rose-400 bg-rose-50' : 'border-gray-200'
                                 }`}
-                            />
+                            >
+                                {DEPARTMENT_OPTIONS.map(d => (
+                                    <option key={d.value} value={d.value}>{d.label}</option>
+                                ))}
+                            </select>
                             {errors.departamento && <p className="text-rose-500 text-xs mt-1.5 font-medium">{errors.departamento}</p>}
                         </div>
                     </div>
@@ -1211,7 +1366,7 @@ function StaffTab({ onToast }) {
                                         <span className="text-sm font-medium text-gray-700">{person.email}</span>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <StaffRoleBadge role={person.rol} />
+                                        <StaffRoleBadge role={person.rol} esGerente={person.esGerente} />
                                     </td>
                                     <td className="px-6 py-4">
                                         <span className="text-sm text-gray-600">{person.departamento || 'Sin Departamento'}</span>

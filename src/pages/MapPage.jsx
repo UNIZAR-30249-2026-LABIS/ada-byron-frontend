@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import InteractiveMap from '../components/InteractiveMap';
 import ReservationForm from '../components/ReservationForm';
 import { useNavigate } from 'react-router-dom';
-import { getUser } from '../services/authService';
+import { getUser, isManager as hasManagerRole } from '../services/authService';
 
 const FLOOR_OPTIONS = [
     { value: 'S1', label: 'Sótano 1' },
@@ -22,7 +22,7 @@ export default function MapPage() {
 
     useEffect(() => {
         const user = getUser();
-        setIsManager(user?.rol === 'Gerente');
+        setIsManager(hasManagerRole(user));
     }, []);
 
     return (

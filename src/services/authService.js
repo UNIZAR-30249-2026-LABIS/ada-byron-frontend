@@ -1,7 +1,7 @@
 import api from './api';
 
 // Mapeo de índices de enum a nombres de rol (coincide con el enum Rol.cs del backend)
-const ROL_NAMES = ['Estudiante', 'TecnicoLab', 'Docente', 'Conserje', 'Gerente'];
+const ROL_NAMES = ['Estudiante', 'InvestigadorContratado', 'DocenteInvestigador', 'Conserje', 'TecnicoLaboratorio', 'Gerente'];
 
 /**
  * Normaliza el rol: si el backend manda un entero (ej: 4), lo convierte al nombre ("Gerente").
@@ -24,12 +24,19 @@ export async function login(email) {
 }
 
 export function saveSession(authData) {
+    const roles = Array.isArray(authData.roles) ? authData.roles.map(normalizeRol) : [];
     localStorage.setItem('ada_token', authData.token);
     localStorage.setItem('ada_user', JSON.stringify({
         email: authData.email,
         nombreCompleto: authData.nombreCompleto,
-        rol: normalizeRol(authData.rol),   // siempre almacena el nombre en string
+        rol: normalizeRol(authData.rol),
+        roles,
+        esGerente: Boolean(authData.esGerente || roles.includes('Gerente')),
     }));
+}
+
+export function isManager(user = getUser()) {
+    return Boolean(user?.esGerente || user?.rol === 'Gerente' || user?.roles?.includes('Gerente'));
 }
 
 export function getToken() { return localStorage.getItem('ada_token'); }
