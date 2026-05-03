@@ -527,16 +527,19 @@ function EditSpaceModal({ espacio, onClose, onSaved }) {
 // Reservas Tab
 // ─────────────────────────────────────────────────────────────────────────────
 
-function ReservasTab({ reservations, isLoading, onRescind, onRefresh }) {
+function ReservasTab({ reservations, isLoading, onRescind, onForceCancel, onApproveException, onRefresh }) {
     const [filterCategory, setFilterCategory] = useState('');
     const [filterFloor,    setFilterFloor]    = useState('');
     const [search,         setSearch]         = useState('');
+    const [onlyAlerts,     setOnlyAlerts]     = useState(false);
 
     const filtered = reservations.filter(res => {
+        const isInvalida = res.esPotencialmenteInvalida || res.estado === 'PotencialmenteInvalida';
         const matchSearch   = search === '' || res.espacioId?.toLowerCase().includes(search.toLowerCase()) || res.solicitante?.toLowerCase().includes(search.toLowerCase()) || res.nombreEspacio?.toLowerCase().includes(search.toLowerCase());
         const matchCategory = filterCategory === '' || res.nombreEspacio?.toLowerCase().includes(filterCategory.toLowerCase());
         const matchFloor    = filterFloor === '' || res.espacioId?.includes(`.${filterFloor}.`) || res.espacioId?.startsWith(`${filterFloor}.`);
-        return matchSearch && matchCategory && matchFloor;
+        const matchAlert    = !onlyAlerts || isInvalida;
+        return matchSearch && matchCategory && matchFloor && matchAlert;
     });
 
     return (
@@ -572,6 +575,16 @@ function ReservasTab({ reservations, isLoading, onRescind, onRefresh }) {
                     <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
                         <p className="text-[10px] text-blue-700 font-semibold leading-relaxed">Mostrando reservas activas con fin posterior a ahora.</p>
                     </div>
+                    {/* PBI-13: filtro de alertas */}
+                    <label className="flex items-center gap-2 cursor-pointer px-1">
+                        <input
+                            type="checkbox"
+                            checked={onlyAlerts}
+                            onChange={e => setOnlyAlerts(e.target.checked)}
+                            className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
+                        />
+                        <span className="text-[11px] font-bold text-amber-700">Solo alertas</span>
+                    </label>
                 </div>
             </aside>
 
@@ -614,8 +627,17 @@ function ReservasTab({ reservations, isLoading, onRescind, onRefresh }) {
                                             <span className="text-gray-400 text-sm font-medium">No hay reservas activas</span>
                                         </div>
                                     </td></tr>
-                                ) : filtered.map(res => (
-                                    <tr key={res.id} className="hover:bg-slate-50/30 transition-colors group">
+                                ) : filtered.map(res => {
+                                    const isInvalida = res.esPotencialmenteInvalida || res.estado === 'PotencialmenteInvalida';
+                                    return (
+                                    <tr
+                                        key={res.id}
+                                        className={`transition-colors group ${
+                                            isInvalida
+                                                ? 'bg-amber-50/70 border-l-4 border-amber-400 hover:bg-amber-100/60'
+                                                : 'hover:bg-slate-50/30'
+                                        }`}
+                                    >
                                         <td className="px-6 py-5">
                                             <div className="flex flex-col">
                                                 <span className="text-sm font-bold text-gray-900">{res.espacioId}</span>
@@ -624,28 +646,60 @@ function ReservasTab({ reservations, isLoading, onRescind, onRefresh }) {
                                         </td>
                                         <td className="px-6 py-5 text-sm font-semibold text-gray-700">{res.solicitante}</td>
                                         <td className="px-6 py-5">
-                                            <span className="text-xs font-bold text-gray-700">
-                                                {new Date(res.inicio).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} –{' '}
-                                                {new Date(res.fin).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
-                                            </span>
+                                            <div className="flex flex-col">
+                                                <span className="text-xs font-bold text-gray-700">
+                                                    {new Date(res.inicio).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} –{' '}
+                                                    {new Date(res.fin).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
+                                                </span>
+                                                <span className="text-[10px] text-gray-400">
+                                                    {new Date(res.inicio).toLocaleDateString([], {day:'2-digit', month:'short'})}
+                                                </span>
+                                            </div>
                                         </td>
                                         <td className="px-6 py-5 text-center">
-                                            {(res.esPotencialmenteInvalida || res.estado === 'PotencialmenteInvalida') ? (
-                                                <span className="px-2.5 py-1 bg-amber-100 text-amber-700 text-[10px] font-black rounded-full border border-amber-200 uppercase">Sospechosa</span>
+                                            {isInvalida ? (
+                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-100 text-amber-700 text-[10px] font-black rounded-full border border-amber-300 uppercase">
+                                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                                    </svg>
+                                                    Alerta Aforo
+                                                </span>
                                             ) : (
                                                 <span className="px-2.5 py-1 bg-green-100 text-green-700 text-[10px] font-black rounded-full border border-green-200 uppercase">Válida</span>
                                             )}
                                         </td>
                                         <td className="px-6 py-5 text-right">
-                                            <button
-                                                onClick={() => onRescind(res.id)}
-                                                className="px-4 py-2 bg-rose-50 text-rose-600 text-[11px] font-bold rounded-xl border border-rose-100 hover:bg-rose-600 hover:text-white transition-all hover:scale-105"
-                                            >
-                                                Anular
-                                            </button>
+                                            {isInvalida ? (
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button
+                                                        id={`force-cancel-${res.id}`}
+                                                        onClick={() => onForceCancel(res.id)}
+                                                        title="Cancelar definitivamente esta reserva"
+                                                        className="px-3 py-1.5 bg-rose-50 text-rose-600 text-[11px] font-bold rounded-xl border border-rose-200 hover:bg-rose-600 hover:text-white transition-all hover:scale-105"
+                                                    >
+                                                        Cancelar
+                                                    </button>
+                                                    <button
+                                                        id={`approve-exception-${res.id}`}
+                                                        onClick={() => onApproveException(res.id)}
+                                                        title="Admitir excepción y mantener la reserva"
+                                                        className="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-[11px] font-bold rounded-xl border border-emerald-200 hover:bg-emerald-600 hover:text-white transition-all hover:scale-105"
+                                                    >
+                                                        Admitir excepción
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    onClick={() => onRescind(res.id)}
+                                                    className="px-4 py-2 bg-rose-50 text-rose-600 text-[11px] font-bold rounded-xl border border-rose-100 hover:bg-rose-600 hover:text-white transition-all hover:scale-105"
+                                                >
+                                                    Anular
+                                                </button>
+                                            )}
                                         </td>
                                     </tr>
-                                ))}
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
@@ -655,8 +709,8 @@ function ReservasTab({ reservations, isLoading, onRescind, onRefresh }) {
                 <div className="mt-6 grid grid-cols-3 gap-4">
                     {[
                         { label: 'Total Activas', value: filtered.length, color: 'text-gray-900' },
-                        { label: 'En Revisión',   value: filtered.filter(r => r.esPotencialmenteInvalida).length, color: 'text-amber-500' },
-                        { label: 'Aulas Libres',  value: '—', color: 'text-blue-600' },
+                        { label: 'Alertas Aforo',  value: filtered.filter(r => r.esPotencialmenteInvalida || r.estado === 'PotencialmenteInvalida').length, color: 'text-amber-500' },
+                        { label: 'Sin Incidencias',  value: filtered.filter(r => !r.esPotencialmenteInvalida && r.estado !== 'PotencialmenteInvalida').length, color: 'text-emerald-600' },
                     ].map(stat => (
                         <div key={stat.label} className="p-5 bg-white rounded-2xl border border-gray-100 shadow-sm">
                             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">{stat.label}</span>
@@ -1250,6 +1304,34 @@ export default function AdminDashboard() {
         }
     };
 
+    // PBI-13: Cancelación forzada administrativa
+    const handleForceCancel = async (id) => {
+        if (!id) return;
+        if (!window.confirm('El aforo de este espacio ya no es suficiente para esta reserva.\n¿Cancelar definitivamente la reserva? El usuario será notificado.')) return;
+        try {
+            await api.post(`Admin/reservations/${id}/force-cancel`);
+            showToast('success', 'Reserva cancelada administrativamente.');
+            fetchReservations();
+        } catch (err) {
+            const data = err.response?.data;
+            showToast('error', typeof data === 'string' ? data : 'Error al cancelar la reserva.');
+        }
+    };
+
+    // PBI-13: Admitir excepción (restaurar a Aceptada)
+    const handleApproveException = async (id) => {
+        if (!id) return;
+        if (!window.confirm('¿Admitir excepción? La reserva volverá a estado Aceptada aunque supere el aforo actual.')) return;
+        try {
+            await api.post(`Admin/reservations/${id}/approve-exception`);
+            showToast('success', 'Excepción admitida. La reserva está de nuevo Aceptada.');
+            fetchReservations();
+        } catch (err) {
+            const data = err.response?.data;
+            showToast('error', typeof data === 'string' ? data : 'Error al admitir la excepción.');
+        }
+    };
+
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
             {/* ── Header ───────────────────────────────────────────────────── */}
@@ -1330,6 +1412,8 @@ export default function AdminDashboard() {
                             reservations={reservations}
                             isLoading={isLoading}
                             onRescind={handleRescind}
+                            onForceCancel={handleForceCancel}
+                            onApproveException={handleApproveException}
                             onRefresh={fetchReservations}
                         />
                     )}
