@@ -11,6 +11,8 @@ import MisReservas from './pages/MyReservationsPage';
 import { getUser, isAuthenticated } from './services/authService';
 import { NotificationProvider } from './services/NotificationProvider';
 
+import { Toaster } from 'react-hot-toast';
+
 function PrivateRoute({ children }) {
     return isAuthenticated() ? children : <Navigate to="/login" replace />;
 }
@@ -30,6 +32,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <NotificationProvider>
+                <Toaster position="top-right" reverseOrder={false} />
                 <Routes>
                     <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
                     <Route

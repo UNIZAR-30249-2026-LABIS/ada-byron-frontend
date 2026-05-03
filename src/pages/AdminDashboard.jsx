@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { getUser, logout as authLogout } from '../services/authService';
+import toast from 'react-hot-toast';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -1308,28 +1309,38 @@ export default function AdminDashboard() {
     const handleForceCancel = async (id) => {
         if (!id) return;
         if (!window.confirm('El aforo de este espacio ya no es suficiente para esta reserva.\n¿Cancelar definitivamente la reserva? El usuario será notificado.')) return;
-        try {
-            await api.post(`Admin/reservations/${id}/force-cancel`);
-            showToast('success', 'Reserva cancelada administrativamente.');
+        
+        const cancelPromise = api.post(`Admin/reservations/${id}/force-cancel`).then(() => {
             fetchReservations();
-        } catch (err) {
-            const data = err.response?.data;
-            showToast('error', typeof data === 'string' ? data : 'Error al cancelar la reserva.');
-        }
+        });
+
+        toast.promise(cancelPromise, {
+            loading: 'Cancelando reserva...',
+            success: 'Reserva cancelada administrativamente.',
+            error: (err) => {
+                const data = err.response?.data;
+                return typeof data === 'string' ? data : 'Error al cancelar la reserva.';
+            }
+        });
     };
 
     // PBI-13: Admitir excepción (restaurar a Aceptada)
     const handleApproveException = async (id) => {
         if (!id) return;
         if (!window.confirm('¿Admitir excepción? La reserva volverá a estado Aceptada aunque supere el aforo actual.')) return;
-        try {
-            await api.post(`Admin/reservations/${id}/approve-exception`);
-            showToast('success', 'Excepción admitida. La reserva está de nuevo Aceptada.');
+        
+        const approvePromise = api.post(`Admin/reservations/${id}/approve-exception`).then(() => {
             fetchReservations();
-        } catch (err) {
-            const data = err.response?.data;
-            showToast('error', typeof data === 'string' ? data : 'Error al admitir la excepción.');
-        }
+        });
+
+        toast.promise(approvePromise, {
+            loading: 'Admitiendo excepción...',
+            success: 'Excepción admitida correctamente.',
+            error: (err) => {
+                const data = err.response?.data;
+                return typeof data === 'string' ? data : 'Error al admitir la excepción.';
+            }
+        });
     };
 
     return (
