@@ -119,7 +119,6 @@ export default function ReservationForm({ selectedSpace, onClose }) {
         }
 
         const payload = {
-            email: user.email,
             codigoEspacio: selectedSpace.codigoEspacio ?? selectedSpace.id_espacio ?? selectedSpace.idEspacio ?? selectedSpace.id,
             inicio: new Date(`${form.fecha}T${form.horaInicio}`).toISOString(),
             fin: new Date(`${form.fecha}T${form.horaFin}`).toISOString(),
