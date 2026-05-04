@@ -5,14 +5,33 @@ import 'leaflet/dist/leaflet.css';
 const WMS_BASE_URL = '/geoserver/adabyron/wms';
 
 const FLOOR_LAYERS = {
-    S1: 'adabyron:spaces_floor_s1_ada_byron_ui',
     0: 'adabyron:spaces_floor_0_ada_byron_ui',
     1: 'adabyron:spaces_floor_1_ada_byron_ui',
     2: 'adabyron:spaces_floor_2_ada_byron_ui',
     3: 'adabyron:spaces_floor_3_ada_byron_ui',
     4: 'adabyron:spaces_floor_4_ada_byron_ui',
-    5: 'adabyron:spaces_floor_5_ada_byron_ui',
 };
+
+// Tipos de uso reservables según las vistas WMS del GeoServer (02_create_ui_views.sql)
+const USOS_RESERVABLES = new Set([
+    'AULA',
+    'LABORATORIO',
+    'SALA INFORMÁTICA',
+    'SALA REUNIONES',
+    'SALÓN DE ACTOS',
+    'BIBLIOTECA',
+    'DESPACHO',
+]);
+
+function isEspacioReservable(properties) {
+    if (!properties) return false;
+    // Campo calculado por el GeoServer: fuente de verdad primaria
+    if (properties.is_reservable_candidate === true) return true;
+    if (properties.is_reservable_candidate === false) return false;
+    // Fallback por si la vista no expone el campo: comprobar display_category y uso
+    if (properties.display_category === 'CONTEXTO') return false;
+    return USOS_RESERVABLES.has((properties.uso ?? '').toUpperCase().trim());
+}
 
 function FeatureInfoPopup({ url, layer, onSpaceSelect }) {
     const map = useMapEvents({
@@ -45,6 +64,8 @@ function FeatureInfoPopup({ url, layer, onSpaceSelect }) {
 
                 if (data.features && data.features.length > 0) {
                     const properties = data.features[0].properties;
+
+                    if (!isEspacioReservable(properties)) return;
 
                     if (onSpaceSelect) {
                         onSpaceSelect(properties);

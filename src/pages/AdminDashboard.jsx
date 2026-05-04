@@ -665,6 +665,63 @@ function EditSpaceModal({ espacio, onClose, onSaved }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Modals
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ConfirmActionModal({ title, message, onConfirm, onClose, isLoading, isDestructive = true }) {
+    if (!title) return null;
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 animate-in zoom-in-95 duration-200">
+                <div className="flex flex-col items-center text-center gap-4">
+                    <div className={`w-14 h-14 rounded-full flex items-center justify-center ${isDestructive ? 'bg-rose-100' : 'bg-emerald-100'}`}>
+                        {isDestructive ? (
+                            <svg className="w-7 h-7 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        ) : (
+                            <svg className="w-7 h-7 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                        )}
+                    </div>
+                    <div>
+                        <h2 className="text-lg font-black text-gray-900 mb-1">{title}</h2>
+                        <p className="text-sm text-gray-500 leading-relaxed whitespace-pre-line">{message}</p>
+                    </div>
+                    <div className="flex gap-3 w-full mt-2">
+                        <button
+                            onClick={onClose}
+                            disabled={isLoading}
+                            className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            id="confirm-action-btn"
+                            onClick={onConfirm}
+                            disabled={isLoading}
+                            className={`flex-1 py-3 rounded-xl text-sm font-bold text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-2 ${
+                                isDestructive ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700'
+                            }`}
+                        >
+                            {isLoading && (
+                                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                                </svg>
+                            )}
+                            Confirmar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Reservas Tab
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1416,6 +1473,8 @@ export default function AdminDashboard() {
     const [reservations, setReservations] = useState([]);
     const [isLoading,    setIsLoading]    = useState(true);
     const [toast,        setToast]        = useState(null);
+    const [actionModal,  setActionModal]  = useState(null);
+    const [isActionLoading, setIsActionLoading] = useState(false);
 
     const showToast = useCallback((type, msg) => {
         setToast({ type, msg });
@@ -1441,61 +1500,65 @@ export default function AdminDashboard() {
         return () => clearInterval(interval);
     }, [fetchReservations]);
 
-    const handleRescind = async (id) => {
-        if (!id) return;
-        if (!window.confirm(`¿Anular definitivamente la reserva ${id}?`)) return;
+    const handleRescind = (id) => {
+        setActionModal({
+            type: 'rescind',
+            id,
+            title: '¿Anular reserva?',
+            message: `Vas a anular definitivamente la reserva ${id}. El usuario será notificado.`,
+            isDestructive: true
+        });
+    };
+
+    const handleForceCancel = (id) => {
+        setActionModal({
+            type: 'forceCancel',
+            id,
+            title: 'Cancelar por aforo',
+            message: `El aforo de este espacio ya no es suficiente para esta reserva.\n¿Cancelar definitivamente? El usuario será notificado.`,
+            isDestructive: true
+        });
+    };
+
+    const handleApproveException = (id) => {
+        setActionModal({
+            type: 'approveException',
+            id,
+            title: 'Admitir excepción',
+            message: `¿Admitir excepción? La reserva volverá a estado Aceptada aunque supere el aforo actual.`,
+            isDestructive: false
+        });
+    };
+
+    const handleConfirmAction = async () => {
+        if (!actionModal) return;
+        setIsActionLoading(true);
+        const { type, id } = actionModal;
+
         try {
-            await api.delete(`Admin/reservations/${id}`);
-            showToast('success', 'Reserva anulada. Usuario notificado vía SignalR.');
-            fetchReservations();
+            if (type === 'rescind') {
+                await api.delete(`Admin/reservations/${id}`);
+                showToast('success', 'Reserva anulada. Usuario notificado vía SignalR.');
+            } else if (type === 'forceCancel') {
+                await api.post(`Admin/reservations/${id}/force-cancel`);
+                showToast('success', 'Reserva cancelada administrativamente.');
+            } else if (type === 'approveException') {
+                await api.post(`Admin/reservations/${id}/approve-exception`);
+                showToast('success', 'Excepción admitida correctamente.');
+            }
+            await fetchReservations();
         } catch (err) {
             const data = err.response?.data;
-            let errMsg = 'Error al anular la reserva.';
+            let errMsg = 'Error al procesar la acción.';
             if (typeof data === 'string') errMsg = data;
             else if (data?.detail) errMsg = data.detail;
             else if (data?.title) errMsg = data.title;
             else if (data?.message) errMsg = data.message;
-
             showToast('error', errMsg);
+        } finally {
+            setIsActionLoading(false);
+            setActionModal(null);
         }
-    };
-
-    // PBI-13: Cancelación forzada administrativa
-    const handleForceCancel = async (id) => {
-        if (!id) return;
-        if (!window.confirm('El aforo de este espacio ya no es suficiente para esta reserva.\n¿Cancelar definitivamente la reserva? El usuario será notificado.')) return;
-        
-        const cancelPromise = api.post(`Admin/reservations/${id}/force-cancel`).then(() => {
-            fetchReservations();
-        });
-
-        toast.promise(cancelPromise, {
-            loading: 'Cancelando reserva...',
-            success: 'Reserva cancelada administrativamente.',
-            error: (err) => {
-                const data = err.response?.data;
-                return typeof data === 'string' ? data : 'Error al cancelar la reserva.';
-            }
-        });
-    };
-
-    // PBI-13: Admitir excepción (restaurar a Aceptada)
-    const handleApproveException = async (id) => {
-        if (!id) return;
-        if (!window.confirm('¿Admitir excepción? La reserva volverá a estado Aceptada aunque supere el aforo actual.')) return;
-        
-        const approvePromise = api.post(`Admin/reservations/${id}/approve-exception`).then(() => {
-            fetchReservations();
-        });
-
-        toast.promise(approvePromise, {
-            loading: 'Admitiendo excepción...',
-            success: 'Excepción admitida correctamente.',
-            error: (err) => {
-                const data = err.response?.data;
-                return typeof data === 'string' ? data : 'Error al admitir la excepción.';
-            }
-        });
     };
 
     return (
@@ -1591,6 +1654,17 @@ export default function AdminDashboard() {
                     )}
                 </div>
             </main>
+
+            {actionModal && (
+                <ConfirmActionModal
+                    title={actionModal.title}
+                    message={actionModal.message}
+                    isDestructive={actionModal.isDestructive}
+                    isLoading={isActionLoading}
+                    onConfirm={handleConfirmAction}
+                    onClose={() => setActionModal(null)}
+                />
+            )}
         </div>
     );
 }

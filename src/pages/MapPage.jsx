@@ -5,13 +5,11 @@ import { useNavigate } from 'react-router-dom';
 import { getUser, isManager as hasManagerRole } from '../services/authService';
 
 const FLOOR_OPTIONS = [
-    { value: 'S1', label: 'Sótano 1' },
     { value: '0', label: 'Planta Baja' },
     { value: '1', label: 'Planta 1' },
     { value: '2', label: 'Planta 2' },
     { value: '3', label: 'Planta 3' },
     { value: '4', label: 'Planta 4' },
-    { value: '5', label: 'Planta 5' },
 ];
 
 export default function MapPage() {
