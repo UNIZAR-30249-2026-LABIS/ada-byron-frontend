@@ -82,7 +82,19 @@ function ReservationCard({ reserva, onCancel, cancelling }) {
                             {reserva.numeroAsistentes} asistentes
                         </span>
                     )}
+                    {reserva.tipoUso && (
+                        <span className="ml-3 inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 text-blue-600 border border-blue-100 rounded text-[10px] font-bold uppercase tracking-wide">
+                            {reserva.tipoUso === 'Investigacion' ? 'Investigación'
+                                : reserva.tipoUso === 'Gestion' ? 'Gestión'
+                                : reserva.tipoUso}
+                        </span>
+                    )}
                 </p>
+                {reserva.descripcion && (
+                    <p className="text-[11px] text-gray-400 mt-1 truncate italic">
+                        {reserva.descripcion}
+                    </p>
+                )}
             </div>
 
             {/* Actions */}

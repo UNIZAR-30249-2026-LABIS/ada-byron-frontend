@@ -1,20 +1,18 @@
 import { useState, useEffect } from 'react';
-// Import the configured api instance instead of raw axios
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import InteractiveMap from '../components/InteractiveMap';
 import ReservationForm from '../components/ReservationForm';
 import { getUser, isManager as hasManagerRole } from '../services/authService';
+import { getSpaceAvailabilityNow, availabilityBadgeProps } from '../utils/spaceUtils';
 
 const FLOOR_OPTIONS = [
     { value: '', label: 'Cualquier planta' },
-    { value: 'S1', label: 'Sótano 1' },
     { value: '0', label: 'Planta Baja' },
     { value: '1', label: 'Planta 1' },
     { value: '2', label: 'Planta 2' },
     { value: '3', label: 'Planta 3' },
     { value: '4', label: 'Planta 4' },
-    { value: '5', label: 'Planta 5' },
 ];
 
 const CATEGORY_OPTIONS = [
@@ -42,28 +40,35 @@ export default function SearchPage() {
     const [filterFloor, setFilterFloor] = useState('');
     const [filterCategory, setFilterCategory] = useState('');
     const [filterCapacity, setFilterCapacity] = useState('');
+    const [filterReservable, setFilterReservable] = useState(''); // '' | 'reservable' | 'disponible'
 
     // Resultados de búsqueda
     const [allSpaces, setAllSpaces] = useState([]);
     const [searchResults, setSearchResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
 
-    // Initial fetch of all spaces
+    // Porcentaje de aforo global del edificio (para calcular aforo efectivo)
+    const [buildingPct, setBuildingPct] = useState(100);
+
+    // Initial fetch de espacios + config del edificio (en paralelo)
     useEffect(() => {
-        const fetchSpaces = async () => {
+        const fetchAll = async () => {
             setIsSearching(true);
             try {
-                // Se solicita el listado completo debido a que el backend no expone un endpoint /search específico
-                const response = await api.get('/spaces');
-                setAllSpaces(response.data);
-                setSearchResults(response.data);
+                const [spacesRes, configRes] = await Promise.all([
+                    api.get('/spaces'),
+                    api.get('/spaces/building-config').catch(() => ({ data: { porcentajeOcupacion: 100 } })),
+                ]);
+                setAllSpaces(spacesRes.data);
+                setSearchResults(spacesRes.data);
+                setBuildingPct(configRes.data?.porcentajeOcupacion ?? 100);
             } catch (error) {
                 console.error("Error al buscar espacios:", error);
             } finally {
                 setIsSearching(false);
             }
         };
-        fetchSpaces();
+        fetchAll();
     }, []);
 
     // Aplicar filtros en memoria
@@ -85,12 +90,20 @@ export default function SearchPage() {
             results = results.filter(s => s.categoriaReserva === filterCategory);
         }
         if (filterCapacity) {
-            const minCap = parseInt(filterCapacity, 10);
+            const maxCap = parseInt(filterCapacity, 10);
             results = results.filter(s => {
-                const aforoOriginal = s.aforo?.valor !== undefined ? s.aforo.valor : s.aforo;
-                // Calculo estricto del frontend o podemos usar el aforo base:
-                return aforoOriginal >= minCap;
+                const aforoBase = s.aforo?.valor !== undefined ? s.aforo.valor : (s.aforo ?? 0);
+                const pct = s.porcentajeOcupacionEspecifico ?? buildingPct;
+                const aforoEfectivo = Math.floor(aforoBase * pct / 100);
+                return aforoEfectivo <= maxCap;
             });
+        }
+        if (filterReservable === 'reservable') {
+            // Espacio habilitado para reservas por el admin (flag esReservable)
+            results = results.filter(s => s.esReservable !== false);
+        } else if (filterReservable === 'disponible') {
+            // Reservable Y en franja horaria activa ahora mismo
+            results = results.filter(s => getSpaceAvailabilityNow(s) === 'available');
         }
 
         setSearchResults(results);
@@ -98,7 +111,7 @@ export default function SearchPage() {
         if (filterFloor) {
             setSelectedFloor(filterFloor);
         }
-    }, [filterId, filterFloor, filterCategory, filterCapacity, allSpaces]);
+    }, [filterId, filterFloor, filterCategory, filterCapacity, filterReservable, buildingPct, allSpaces]);
 
     return (
         <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans">
@@ -146,6 +159,19 @@ export default function SearchPage() {
                             </select>
                         </div>
 
+                        <div>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1" htmlFor="filter-reservable">Disponibilidad</label>
+                            <select
+                                id="filter-reservable"
+                                value={filterReservable}
+                                onChange={(e) => setFilterReservable(e.target.value)}
+                                className="w-full bg-slate-50 border border-gray-200 rounded-lg px-2 py-2 text-xs text-gray-700 outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none cursor-pointer"
+                            >
+                                <option value="">Cualquier estado</option>
+                                <option value="disponible">Disponibles ahora</option>
+                            </select>
+                        </div>
+
                         <div className="flex gap-2">
                             <div className="flex-1 min-w-0">
                                 <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1" htmlFor="filter-planta">Planta</label>
@@ -164,11 +190,11 @@ export default function SearchPage() {
                                 </select>
                             </div>
                             <div className="flex-1 min-w-0">
-                                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1" htmlFor="filter-capacity">Aforo (Min)</label>
+                                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1" htmlFor="filter-capacity">Aforo ef. (Máx)</label>
                                 <input
                                     id="filter-capacity"
                                     type="number"
-                                    min="0"
+                                    min="1"
                                     placeholder="Ej: 30"
                                     value={filterCapacity}
                                     onChange={(e) => setFilterCapacity(e.target.value)}
@@ -214,11 +240,27 @@ export default function SearchPage() {
                                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                                             </svg>
-                                            Aforo: {space.aforo?.valor !== undefined ? space.aforo.valor : space.aforo}
+                                            {(() => {
+                                                const aforoBase = space.aforo?.valor !== undefined ? space.aforo.valor : (space.aforo ?? 0);
+                                                const pct = space.porcentajeOcupacionEspecifico ?? buildingPct;
+                                                const aforoEfectivo = Math.floor(aforoBase * pct / 100);
+                                                const tieneEspecifico = space.porcentajeOcupacionEspecifico != null;
+                                                return aforoEfectivo !== aforoBase
+                                                    ? <span title={`Aforo base: ${aforoBase} · ${tieneEspecifico ? 'Porcentaje propio' : 'Porcentaje edificio'}: ${pct}%`}>
+                                                        Aforo: <strong>{aforoEfectivo}</strong>
+                                                        <span className="text-gray-300 ml-0.5">/{aforoBase}</span>
+                                                      </span>
+                                                    : `Aforo: ${aforoBase}`;
+                                            })()}
                                         </div>
-                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold border ${space.esReservable === false ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
-                                            {space.esReservable === false ? 'No reservable' : 'Reservable'}
-                                        </span>
+                                        {(() => {
+                                            const { label, className } = availabilityBadgeProps(getSpaceAvailabilityNow(space));
+                                            return (
+                                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold border ${className}`}>
+                                                    {label}
+                                                </span>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             ))}
@@ -228,7 +270,7 @@ export default function SearchPage() {
                     {/* Admin Access Button */}
                     {isManager && (
                         <div className="pt-4 border-t border-gray-100 mt-4">
-                            <button 
+                            <button
                                 onClick={() => navigate('/admin')}
                                 className="w-full py-2 bg-blue-50 text-blue-700 text-[11px] font-bold rounded-xl border border-blue-100 hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center justify-center gap-2"
                             >

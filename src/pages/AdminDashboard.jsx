@@ -27,23 +27,19 @@ const CATEGORY_EDIT_OPTIONS = [
 
 const FLOOR_OPTIONS = [
     { value: '', label: 'Cualquier planta' },
-    { value: '-1', label: 'Sótano 1' },
     { value: '0', label: 'Planta Baja' },
     { value: '1', label: 'Planta 1' },
     { value: '2', label: 'Planta 2' },
     { value: '3', label: 'Planta 3' },
     { value: '4', label: 'Planta 4' },
-    { value: '5', label: 'Planta 5' },
 ];
 
 const FLOOR_EDIT_OPTIONS = [
-    { value: '-1', label: 'Sótano 1' },
     { value: '0', label: 'Planta Baja' },
     { value: '1', label: 'Planta 1' },
     { value: '2', label: 'Planta 2' },
     { value: '3', label: 'Planta 3' },
     { value: '4', label: 'Planta 4' },
-    { value: '5', label: 'Planta 5' },
 ];
 
 const TABS = [
@@ -146,7 +142,7 @@ function emptyStaffForm() {
         apellidos: '',
         rol: 'Estudiante',
         departamento: '',
-        esGerente: false,
+        esDocente: false,
     };
 }
 
@@ -212,13 +208,11 @@ function validate(form) {
         if (day.activo && day.horaInicio >= day.horaFin)
             errors.horarioReserva = 'Cada día activo debe tener una hora de inicio anterior a la de fin.';
     });
-    // PBI-12: porcentaje específico
     if (form.porcentajeEspecifico !== '' && form.porcentajeEspecifico !== null) {
         const pct = parseFloat(form.porcentajeEspecifico);
         if (isNaN(pct) || pct < 0 || pct > 100)
             errors.porcentajeEspecifico = 'El porcentaje debe ser un número entre 0 y 100.';
     }
-    // HU-09: asignación del espacio
     const allowedAssignment = getAssignmentOptions(form.categoria);
     if (!allowedAssignment.some(o => o.value === form.tipoAsignacion))
         errors.tipoAsignacion = `La categoría '${form.categoria}' no admite el tipo de asignación seleccionado.`;
@@ -242,11 +236,9 @@ function EditSpaceModal({ espacio, onClose, onSaved }) {
         categoria: initialCategoria,
         esReservable: isPhysicalDespacho ? false : (espacio.esReservable ?? true),
         horarioReserva: normalizeSchedule(espacio.horarioReserva ?? createDefaultSchedule()),
-        // PBI-12: porcentaje específico ('' = campo vacío → heredar del edificio)
         porcentajeEspecifico: espacio.porcentajeOcupacionEspecifico != null
             ? String(espacio.porcentajeOcupacionEspecifico)
             : '',
-        // HU-09: asignación del espacio
         tipoAsignacion: espacio.tipoAsignacion ?? defaultAssignmentForCategoria(initialCategoria),
         departamentoAsignado: (!espacio.departamento?.isNull && espacio.departamento?.nombre)
             ? espacio.departamento.nombre
@@ -295,7 +287,7 @@ function EditSpaceModal({ espacio, onClose, onSaved }) {
 
         setIsLoading(true);
         try {
-            // 1. Actualizar los datos principales del espacio (incluyendo asignación HU-09)
+            // 1. Actualizar los datos principales del espacio
             await api.put(`Admin/spaces/${encodeURIComponent(espacio.codigoEspacio)}`, {
                 nombre:   form.nombre.trim(),
                 aforo:    parseInt(form.aforo, 10),
@@ -310,7 +302,7 @@ function EditSpaceModal({ espacio, onClose, onSaved }) {
                     : [],
             });
 
-            // 2. PBI-12: Actualizar el porcentaje específico (endpoint dedicado)
+            // 2. Actualizar el porcentaje específico (endpoint dedicado)
             const pctValue = form.porcentajeEspecifico === '' ? null : parseFloat(form.porcentajeEspecifico);
             await api.patch(
                 `Admin/spaces/${encodeURIComponent(espacio.codigoEspacio)}/aforo-especifico`,
@@ -428,10 +420,10 @@ function EditSpaceModal({ espacio, onClose, onSaved }) {
                         {errors.categoria && <p className="text-rose-500 text-xs mt-1.5 font-medium">{errors.categoria}</p>}
                     </div>
 
-                    {/* ── HU-09: Asignación del espacio ───────────────────────── */}
+                    {/* ── Asignación del espacio ───────────────────────── */}
                     <div className="rounded-2xl border border-amber-100 bg-amber-50/40 p-4 space-y-3">
                         <div>
-                            <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-0.5">Asignación del Espacio (HU-09)</p>
+                            <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-0.5">Asignación del Espacio</p>
                             <p className="text-sm font-semibold text-gray-800">Define a quién pertenece o quién puede usar este espacio.</p>
                         </div>
                         <div>
@@ -486,12 +478,12 @@ function EditSpaceModal({ espacio, onClose, onSaved }) {
                         )}
                     </div>
 
-                    {/* ── PBI-12: Porcentaje de ocupación específico ───────────── */}
+                    {/* ── Porcentaje de ocupación específico ───────────── */}
                     <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 space-y-3">
                         <div className="flex items-start justify-between gap-3">
                             <div>
                                 <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-0.5">
-                                    Aforo Específico (PBI-12)
+                                    Aforo Específico
                                 </p>
                                 <p className="text-sm font-semibold text-gray-800">
                                     Porcentaje de uso máximo para este espacio.
@@ -1048,7 +1040,6 @@ function EspaciosTab({ onToast }) {
                                         <td className="px-6 py-4 text-center">
                                             <span className="text-sm font-bold text-gray-800">{aforo}</span>
                                         </td>
-                                        {/* PBI-12: columna % Uso */}
                                         <td className="px-6 py-4 text-center">
                                             {pctEspecifico != null ? (
                                                 <span className="px-2 py-1 text-[11px] font-black rounded-full border bg-indigo-50 text-indigo-700 border-indigo-200">
@@ -1117,7 +1108,7 @@ function validateStaff(form, isEditing) {
         errors.apellidos = 'Los apellidos son obligatorios.';
     if (!form.rol)
         errors.rol = 'Selecciona un rol.';
-    if ((form.rol === 'InvestigadorContratado' || form.rol === 'DocenteInvestigador' || form.rol === 'TecnicoLaboratorio') && !form.departamento.trim())
+    if ((form.rol === 'InvestigadorContratado' || form.rol === 'DocenteInvestigador' || form.rol === 'TecnicoLaboratorio' || (form.rol === 'Gerente' && form.esDocente)) && !form.departamento.trim())
         errors.departamento = 'Este rol requiere departamento.';
 
     return errors;
@@ -1129,16 +1120,20 @@ function StaffModal({ persona, onClose, onSaved }) {
         email: persona.email ?? '',
         nombre: persona.nombre ?? '',
         apellidos: persona.apellidos ?? '',
-        rol: persona.rol ?? 'Estudiante',
+        rol: (persona.esGerente || persona.roles?.includes('Gerente')) ? 'Gerente' : (persona.rol ?? 'Estudiante'),
         departamento: persona.departamento === 'Sin Departamento' ? '' : (persona.departamento ?? ''),
-        esGerente: Boolean(persona.esGerente || persona.roles?.includes('Gerente')),
+        esDocente: Boolean(persona.esGerente),
     }) : emptyStaffForm());
     const [errors, setErrors] = useState({});
     const [serverErr, setServerErr] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
 
     const handleChange = (field, value) => {
-        setForm(current => ({ ...current, [field]: value }));
+        setForm(current => {
+            const next = { ...current, [field]: value };
+            if (field === 'rol' && value !== 'Gerente') next.esDocente = false;
+            return next;
+        });
         setErrors(current => {
             const next = { ...current };
             delete next[field];
@@ -1157,13 +1152,14 @@ function StaffModal({ persona, onClose, onSaved }) {
 
         setIsLoading(true);
         try {
+            const isDocenteGerente = form.rol === 'Gerente' && form.esDocente;
             const payload = {
                 email: form.email.trim().toLowerCase(),
                 nombre: form.nombre.trim(),
                 apellidos: form.apellidos.trim(),
-                rol: form.rol,
+                rol: isDocenteGerente ? 'DocenteInvestigador' : form.rol,
                 departamento: form.departamento.trim(),
-                esGerente: form.esGerente,
+                esGerente: isDocenteGerente,
             };
 
             if (isEditing)
@@ -1248,7 +1244,7 @@ function StaffModal({ persona, onClose, onSaved }) {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                        <div>
+                        <div className="col-span-2">
                             <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Rol</label>
                             <select
                                 value={form.rol}
@@ -1261,17 +1257,19 @@ function StaffModal({ persona, onClose, onSaved }) {
                             </select>
                             {errors.rol && <p className="text-rose-500 text-xs mt-1.5 font-medium">{errors.rol}</p>}
                         </div>
-                        <div>
-                            <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Gerencia</label>
-                            <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-slate-50 px-4 py-3 text-sm text-gray-700">
-                                <input
-                                    type="checkbox"
-                                    checked={form.esGerente}
-                                    onChange={e => handleChange('esGerente', e.target.checked)}
-                                />
-                                Permisos de gerente
-                            </label>
-                        </div>
+                        {form.rol === 'Gerente' && (
+                            <div className="col-span-2">
+                                <label className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-gray-700 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        checked={form.esDocente}
+                                        onChange={e => handleChange('esDocente', e.target.checked)}
+                                        className="accent-blue-600"
+                                    />
+                                    También es docente-investigador
+                                </label>
+                            </div>
+                        )}
                         <div className="col-span-2">
                             <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Departamento</label>
                             <select
@@ -1496,7 +1494,7 @@ function ConfiguracionTab({ onToast }) {
         try {
             await api.put('Admin/config', { porcentajeOcupacion: val });
             setCurrent(val);
-            onToast?.('Porcentaje global actualizado correctamente.', 'success');
+            onToast?.('success', 'Porcentaje global actualizado correctamente.');
         } catch (e) {
             const msg = e.response?.data?.detail || e.response?.data || 'Error al guardar.';
             setError(typeof msg === 'string' ? msg : 'Error al guardar.');

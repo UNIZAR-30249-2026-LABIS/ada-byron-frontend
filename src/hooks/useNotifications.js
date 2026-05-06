@@ -16,8 +16,10 @@ export function useNotifications() {
 
         // Configuración con reconexión automática (Edge Case Handling)
         // Se usa ruta relativa para pasar por el proxy configurado en vite.config.js y evitar problemas CORS/WebSocket
+        // Conectamos a NotificationHub (/hubs/notifications) que es donde SignalRNotificationService
+        // envía "ReservaAnulada" vía IHubContext<NotificationHub>.
         const newConnection = new signalR.HubConnectionBuilder()
-            .withUrl('/hubs/reservations', {
+            .withUrl('/hubs/notifications', {
                 accessTokenFactory: () => token,
                 skipNegotiation: false,
                 transport: signalR.HttpTransportType.WebSockets

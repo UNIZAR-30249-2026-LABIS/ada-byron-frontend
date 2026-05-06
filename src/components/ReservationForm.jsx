@@ -1,51 +1,20 @@
 import { useMemo, useState } from 'react';
 import { createReservation } from '../services/api';
 import { getUser } from '../services/authService';
-
-const WEEK_DAYS = [
-    { value: 1, label: 'Lunes' },
-    { value: 2, label: 'Martes' },
-    { value: 3, label: 'Miércoles' },
-    { value: 4, label: 'Jueves' },
-    { value: 5, label: 'Viernes' },
-    { value: 6, label: 'Sábado' },
-    { value: 0, label: 'Domingo' },
-];
-
-function normalizeSchedule(schedule) {
-    const incoming = Array.isArray(schedule) ? schedule : [];
-    return WEEK_DAYS.map(day => {
-        const found = incoming.find(item => item.diaSemana === day.value);
-        return {
-            diaSemana: day.value,
-            activo: found?.activo ?? true,
-            horaInicio: found?.horaInicio ?? '00:00',
-            horaFin: found?.horaFin ?? '23:59',
-        };
-    });
-}
-
-function getSpaceSchedule(space) {
-    return normalizeSchedule(space?.horarioReserva);
-}
-
-function getScheduleSummary(space) {
-    if (!space) return [];
-    if (space.esReservable === false) return ['Reservas desactivadas'];
-
-    return getSpaceSchedule(space)
-        .filter(day => day.activo)
-        .map(day => {
-            const label = WEEK_DAYS.find(item => item.value === day.diaSemana)?.label ?? 'Día';
-            return `${label}: ${day.horaInicio} - ${day.horaFin}`;
-        });
-}
+import {
+    WEEK_DAYS,
+    getSpaceSchedule,
+    getScheduleSummary,
+    getSpaceAvailabilityNow,
+    availabilityBadgeProps,
+} from '../utils/spaceUtils';
 
 export default function ReservationForm({ selectedSpace, onClose }) {
     const today = useMemo(() => new Date().toISOString().split('T')[0], []);
     const scheduleSummary = useMemo(() => getScheduleSummary(selectedSpace), [selectedSpace]);
     const [form, setForm] = useState({
-        uso: '',
+        tipoUso: '',
+        descripcion: '',
         attendeeCount: 1,
         fecha: today,
         horaInicio: '',
@@ -127,8 +96,11 @@ export default function ReservationForm({ selectedSpace, onClose }) {
             numeroAsistentes: form.attendeeCount,
         };
 
-        if (form.uso) {
-            payload.uso = form.uso;
+        if (form.tipoUso) {
+            payload.tipoUso = form.tipoUso;
+        }
+        if (form.descripcion?.trim()) {
+            payload.descripcion = form.descripcion.trim();
         }
 
         setIsSubmitting(true);
@@ -180,9 +152,14 @@ export default function ReservationForm({ selectedSpace, onClose }) {
                         <span className="px-1.5 py-0.5 bg-white border border-gray-200 rounded text-gray-600 font-bold shadow-sm">
                             P.{selectedSpace.altura || selectedSpace.floor || 'X'}
                         </span>
-                        <span className={`px-1.5 py-0.5 border rounded font-bold shadow-sm ${selectedSpace.esReservable === false ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
-                            {selectedSpace.esReservable === false ? 'Bloqueado' : 'Reservable'}
-                        </span>
+                        {(() => {
+                            const { label, className } = availabilityBadgeProps(getSpaceAvailabilityNow(selectedSpace));
+                            return (
+                                <span className={`px-1.5 py-0.5 border rounded font-bold shadow-sm ${className}`}>
+                                    {label}
+                                </span>
+                            );
+                        })()}
                     </div>
 
                     <div className="mt-2 rounded-lg border border-slate-200 bg-white/80 px-2 py-2">
@@ -218,14 +195,33 @@ export default function ReservationForm({ selectedSpace, onClose }) {
             <form onSubmit={handleSubmit} className="flex flex-col gap-2.5">
                 <div>
                     <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-                        Motivo / Uso (Opcional)
+                        Tipo de Uso (Opcional)
+                    </label>
+                    <select
+                        name="tipoUso"
+                        value={form.tipoUso}
+                        onChange={handleChange}
+                        className="w-full bg-slate-50/50 border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer"
+                    >
+                        <option value="">— Sin especificar —</option>
+                        <option value="Docencia">Docencia</option>
+                        <option value="Investigacion">Investigación</option>
+                        <option value="Gestion">Gestión</option>
+                        <option value="Otros">Otros</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">
+                        Descripción (Opcional)
                     </label>
                     <input
                         type="text"
-                        name="uso"
-                        value={form.uso}
+                        name="descripcion"
+                        value={form.descripcion}
                         onChange={handleChange}
-                        placeholder="Reunión..."
+                        placeholder="Breve descripción del motivo..."
+                        maxLength={500}
                         className="w-full bg-slate-50/50 border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-gray-400"
                     />
                 </div>
