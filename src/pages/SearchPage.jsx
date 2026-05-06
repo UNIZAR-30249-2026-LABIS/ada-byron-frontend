@@ -40,7 +40,8 @@ export default function SearchPage() {
     const [filterFloor, setFilterFloor] = useState('');
     const [filterCategory, setFilterCategory] = useState('');
     const [filterCapacity, setFilterCapacity] = useState('');
-    const [filterReservable, setFilterReservable] = useState(''); // '' | 'reservable' | 'disponible'
+    const [filterReservable, setFilterReservable] = useState(''); // '' | 'disponible'
+    const [filterDepartment, setFilterDepartment] = useState(''); // '' | nombre dept | 'EINA'
 
     // Resultados de búsqueda
     const [allSpaces, setAllSpaces] = useState([]);
@@ -56,8 +57,8 @@ export default function SearchPage() {
             setIsSearching(true);
             try {
                 const [spacesRes, configRes] = await Promise.all([
-                    api.get('/spaces'),
-                    api.get('/spaces/building-config').catch(() => ({ data: { porcentajeOcupacion: 100 } })),
+                    api.get('spaces'),
+                    api.get('spaces/building-config').catch(() => ({ data: { porcentajeOcupacion: 100 } })),
                 ]);
                 setAllSpaces(spacesRes.data);
                 setSearchResults(spacesRes.data);
@@ -98,12 +99,15 @@ export default function SearchPage() {
                 return aforoEfectivo <= maxCap;
             });
         }
-        if (filterReservable === 'reservable') {
-            // Espacio habilitado para reservas por el admin (flag esReservable)
-            results = results.filter(s => s.esReservable !== false);
-        } else if (filterReservable === 'disponible') {
-            // Reservable Y en franja horaria activa ahora mismo
+        if (filterReservable === 'disponible') {
             results = results.filter(s => getSpaceAvailabilityNow(s) === 'available');
+        }
+        if (filterDepartment) {
+            if (filterDepartment === 'EINA') {
+                results = results.filter(s => !s.departamento?.nombre);
+            } else {
+                results = results.filter(s => s.departamento?.nombre === filterDepartment);
+            }
         }
 
         setSearchResults(results);
@@ -111,7 +115,7 @@ export default function SearchPage() {
         if (filterFloor) {
             setSelectedFloor(filterFloor);
         }
-    }, [filterId, filterFloor, filterCategory, filterCapacity, filterReservable, buildingPct, allSpaces]);
+    }, [filterId, filterFloor, filterCategory, filterCapacity, filterReservable, filterDepartment, buildingPct, allSpaces]);
 
     return (
         <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans">
@@ -169,6 +173,21 @@ export default function SearchPage() {
                             >
                                 <option value="">Cualquier estado</option>
                                 <option value="disponible">Disponibles ahora</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1" htmlFor="filter-dept">Departamento</label>
+                            <select
+                                id="filter-dept"
+                                value={filterDepartment}
+                                onChange={(e) => setFilterDepartment(e.target.value)}
+                                className="w-full bg-slate-50 border border-gray-200 rounded-lg px-2 py-2 text-xs text-gray-700 outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none cursor-pointer"
+                            >
+                                <option value="">Cualquier departamento</option>
+                                <option value="EINA">EINA (acceso general)</option>
+                                <option value="Informática">Informática</option>
+                                <option value="Ing. de Sistemas e Ing. Electrónica y Comunicaciones">Ing. Sistemas e Ing. Electrónica</option>
                             </select>
                         </div>
 

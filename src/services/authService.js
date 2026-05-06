@@ -33,6 +33,8 @@ export function saveSession(authData) {
         roles,
         esGerente: Boolean(authData.esGerente || roles.includes('Gerente')),
     }));
+    // Notifica a useNotifications que ya hay token disponible (mismo tab, storage event no dispara)
+    window.dispatchEvent(new CustomEvent('ada-auth-changed'));
 }
 
 export function isManager(user = getUser()) {
