@@ -68,8 +68,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                             </PrivateRoute>
                         }
                     />
-                    {/* Redirige "/" según el estado de sesión */}
-                    <Route path="*" element={<Navigate to={isAuthenticated() ? '/mapa' : '/login'} replace />} />
+                    {/* "/" y cualquier ruta desconocida → siempre login.
+                        Si ya hay sesión, PublicRoute redirigirá automáticamente al mapa. */}
+                    <Route path="/" element={<Navigate to="/login" replace />} />
+                    <Route path="*" element={<Navigate to="/login" replace />} />
                 </Routes>
             </NotificationProvider>
         </BrowserRouter>

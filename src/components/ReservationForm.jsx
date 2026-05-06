@@ -120,8 +120,10 @@ export default function ReservationForm({ selectedSpace, onClose }) {
 
         const payload = {
             codigoEspacio: selectedSpace.codigoEspacio ?? selectedSpace.id_espacio ?? selectedSpace.idEspacio ?? selectedSpace.id,
-            inicio: new Date(`${form.fecha}T${form.horaInicio}`).toISOString(),
-            fin: new Date(`${form.fecha}T${form.horaFin}`).toISOString(),
+            // Enviamos la hora LOCAL sin conversión UTC para que el backend compare
+            // directamente con el horario del espacio (que también está en hora local).
+            inicio: `${form.fecha}T${form.horaInicio}:00`,
+            fin:    `${form.fecha}T${form.horaFin}:00`,
             numeroAsistentes: form.attendeeCount,
         };
 

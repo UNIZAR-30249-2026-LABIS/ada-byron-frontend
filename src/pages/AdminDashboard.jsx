@@ -47,9 +47,10 @@ const FLOOR_EDIT_OPTIONS = [
 ];
 
 const TABS = [
-    { id: 'reservas', label: 'Reservas' },
-    { id: 'espacios', label: 'Espacios' },
-    { id: 'staff', label: 'Staff' },
+    { id: 'reservas',       label: 'Reservas' },
+    { id: 'espacios',       label: 'Espacios' },
+    { id: 'staff',          label: 'Staff' },
+    { id: 'configuracion',  label: 'Configuración' },
 ];
 
 const ROLE_OPTIONS = [
@@ -1464,6 +1465,140 @@ function StaffTab({ onToast }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Main AdminDashboard
 // ─────────────────────────────────────────────────────────────────────────────
+// ConfiguracionTab — porcentaje de aforo global del edificio (PBI-6)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ConfiguracionTab({ onToast }) {
+    const [porcentaje, setPorcentaje] = useState('');
+    const [current,    setCurrent]    = useState(null);
+    const [loading,    setLoading]    = useState(true);
+    const [saving,     setSaving]     = useState(false);
+    const [error,      setError]      = useState('');
+
+    useEffect(() => {
+        api.get('Admin/config')
+            .then(r => {
+                setCurrent(r.data.porcentajeOcupacion ?? r.data.PorcentajeOcupacion);
+                setPorcentaje(String(r.data.porcentajeOcupacion ?? r.data.PorcentajeOcupacion ?? 100));
+            })
+            .catch(() => { setCurrent(100); setPorcentaje('100'); })
+            .finally(() => setLoading(false));
+    }, []);
+
+    const handleSave = async () => {
+        const val = parseFloat(porcentaje);
+        if (isNaN(val) || val < 0 || val > 100) {
+            setError('El porcentaje debe ser un número entre 0 y 100.');
+            return;
+        }
+        setError('');
+        setSaving(true);
+        try {
+            await api.put('Admin/config', { porcentajeOcupacion: val });
+            setCurrent(val);
+            onToast?.('Porcentaje global actualizado correctamente.', 'success');
+        } catch (e) {
+            const msg = e.response?.data?.detail || e.response?.data || 'Error al guardar.';
+            setError(typeof msg === 'string' ? msg : 'Error al guardar.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="max-w-lg mx-auto mt-6 space-y-6">
+            {/* Cabecera */}
+            <div>
+                <h2 className="text-xl font-black text-gray-900">Configuración del Edificio</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                    Ajusta el porcentaje máximo de ocupación permitido para todos los espacios del edificio Ada Byron.
+                    Los espacios con porcentaje específico propio no se ven afectados.
+                </p>
+            </div>
+
+            {/* Tarjeta */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-5">
+                {/* Valor actual */}
+                <div className="flex items-center justify-between pb-4 border-b border-gray-100">
+                    <span className="text-sm font-bold text-gray-600">Porcentaje actual</span>
+                    {loading ? (
+                        <span className="text-sm text-gray-400">Cargando…</span>
+                    ) : (
+                        <span className={`text-2xl font-black ${current < 50 ? 'text-rose-600' : current < 80 ? 'text-amber-500' : 'text-emerald-600'}`}>
+                            {current}%
+                        </span>
+                    )}
+                </div>
+
+                {/* Input nuevo valor */}
+                <div>
+                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">
+                        Nuevo porcentaje de ocupación
+                    </label>
+                    <div className="flex items-center gap-3">
+                        <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="1"
+                            value={porcentaje}
+                            onChange={e => { setPorcentaje(e.target.value); setError(''); }}
+                            disabled={loading}
+                            className={`flex-1 bg-slate-50 border rounded-xl px-4 py-3 text-sm font-bold text-gray-800 outline-none transition-all
+                                focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500
+                                ${error ? 'border-rose-400 bg-rose-50' : 'border-gray-200'}`}
+                            placeholder="0 – 100"
+                        />
+                        <span className="text-lg font-black text-gray-400">%</span>
+                    </div>
+                    {error && <p className="text-rose-500 text-xs mt-2 font-medium">{error}</p>}
+                </div>
+
+                {/* Barra visual */}
+                <div>
+                    <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                        <div
+                            className={`h-2.5 rounded-full transition-all duration-300 ${
+                                (parseFloat(porcentaje) || 0) < 50 ? 'bg-rose-500'
+                                : (parseFloat(porcentaje) || 0) < 80 ? 'bg-amber-400'
+                                : 'bg-emerald-500'
+                            }`}
+                            style={{ width: `${Math.min(Math.max(parseFloat(porcentaje) || 0, 0), 100)}%` }}
+                        />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-gray-400 mt-1 font-medium">
+                        <span>0% (cerrado)</span>
+                        <span>50%</span>
+                        <span>100% (completo)</span>
+                    </div>
+                </div>
+
+                {/* Botón */}
+                <button
+                    onClick={handleSave}
+                    disabled={saving || loading}
+                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-all
+                        disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed active:scale-[0.98]"
+                >
+                    {saving ? 'Guardando…' : 'Guardar cambios'}
+                </button>
+            </div>
+
+            {/* Info */}
+            <div className="flex gap-3 p-4 bg-blue-50 border border-blue-100 rounded-2xl text-xs text-blue-700">
+                <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <p>
+                    Este porcentaje afecta al aforo efectivo de todos los espacios que no tengan un porcentaje propio configurado.
+                    Por ejemplo, con un 50% un aula de 40 personas solo admitirá 20 asistentes por reserva.
+                </p>
+            </div>
+        </div>
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function AdminDashboard() {
     const navigate = useNavigate();
@@ -1651,6 +1786,9 @@ export default function AdminDashboard() {
                     )}
                     {activeTab === 'staff' && (
                         <StaffTab onToast={showToast} />
+                    )}
+                    {activeTab === 'configuracion' && (
+                        <ConfiguracionTab onToast={showToast} />
                     )}
                 </div>
             </main>
