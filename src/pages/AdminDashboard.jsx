@@ -25,6 +25,20 @@ const CATEGORY_EDIT_OPTIONS = [
     { value: 'Despacho', label: 'Despacho' },
 ];
 
+const CATEGORY_MUTABILITY = {
+    Aula: ['Aula', 'Laboratorio', 'Seminario', 'SalaComun'],
+    Laboratorio: ['Aula', 'Laboratorio', 'Seminario'],
+    Seminario: ['Aula', 'Laboratorio', 'Seminario', 'SalaComun'],
+    SalaComun: ['Seminario', 'SalaComun'],
+    Despacho: [],
+};
+
+function getCategoryEditOptions(tipoFisico, currentCategoria) {
+    const allowed = new Set(CATEGORY_MUTABILITY[tipoFisico] ?? []);
+    if (currentCategoria) allowed.add(currentCategoria);
+    return CATEGORY_EDIT_OPTIONS.filter(option => allowed.has(option.value));
+}
+
 const FLOOR_OPTIONS = [
     { value: '', label: 'Cualquier planta' },
     { value: '0', label: 'Planta Baja' },
@@ -229,6 +243,7 @@ function validate(form) {
 function EditSpaceModal({ espacio, onClose, onSaved }) {
     const isPhysicalDespacho = (espacio.tipoFisico ?? espacio.categoriaReserva) === 'Despacho';
     const initialCategoria = espacio.categoriaReserva ?? espacio.tipoFisico ?? 'Aula';
+    const categoryEditOptions = getCategoryEditOptions(espacio.tipoFisico ?? initialCategoria, initialCategoria);
     const [form, setForm] = useState({
         nombre:   espacio.nombre ?? '',
         aforo:    String(espacio.aforo?.valor ?? espacio.aforo ?? ''),
@@ -415,7 +430,7 @@ function EditSpaceModal({ espacio, onClose, onSaved }) {
                                 errors.categoria ? 'border-rose-400 bg-rose-50' : 'border-gray-200'
                             }`}
                         >
-                            {CATEGORY_EDIT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                            {categoryEditOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
                         {errors.categoria && <p className="text-rose-500 text-xs mt-1.5 font-medium">{errors.categoria}</p>}
                     </div>
@@ -766,7 +781,7 @@ function ReservasTab({ reservations, isLoading, onRescind, onForceCancel, onAppr
                     <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
                         <p className="text-[10px] text-blue-700 font-semibold leading-relaxed">Mostrando reservas activas con fin posterior a ahora.</p>
                     </div>
-                    {/* PBI-13: filtro de alertas */}
+                    {/* PBI-13: filtro de reservas potencialmente inválidas */}
                     <label className="flex items-center gap-2 cursor-pointer px-1">
                         <input
                             type="checkbox"
@@ -774,7 +789,7 @@ function ReservasTab({ reservations, isLoading, onRescind, onForceCancel, onAppr
                             onChange={e => setOnlyAlerts(e.target.checked)}
                             className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
                         />
-                        <span className="text-[11px] font-bold text-amber-700">Solo alertas</span>
+                        <span className="text-[11px] font-bold text-amber-700">Solo potencialmente inválidas</span>
                     </label>
                 </div>
             </aside>
@@ -853,7 +868,7 @@ function ReservasTab({ reservations, isLoading, onRescind, onForceCancel, onAppr
                                                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                                                     </svg>
-                                                    Alerta Aforo
+                                                    Potencialmente inválida
                                                 </span>
                                             ) : (
                                                 <span className="px-2.5 py-1 bg-green-100 text-green-700 text-[10px] font-black rounded-full border border-green-200 uppercase">Válida</span>
@@ -900,7 +915,7 @@ function ReservasTab({ reservations, isLoading, onRescind, onForceCancel, onAppr
                 <div className="mt-6 grid grid-cols-3 gap-4">
                     {[
                         { label: 'Total Activas', value: filtered.length, color: 'text-gray-900' },
-                        { label: 'Alertas Aforo',  value: filtered.filter(r => r.esPotencialmenteInvalida || r.estado === 'PotencialmenteInvalida').length, color: 'text-amber-500' },
+                        { label: 'Potencialmente Inválidas',  value: filtered.filter(r => r.esPotencialmenteInvalida || r.estado === 'PotencialmenteInvalida').length, color: 'text-amber-500' },
                         { label: 'Sin Incidencias',  value: filtered.filter(r => !r.esPotencialmenteInvalida && r.estado !== 'PotencialmenteInvalida').length, color: 'text-emerald-600' },
                     ].map(stat => (
                         <div key={stat.label} className="p-5 bg-white rounded-2xl border border-gray-100 shadow-sm">
@@ -1647,8 +1662,8 @@ export default function AdminDashboard() {
         setActionModal({
             type: 'forceCancel',
             id,
-            title: 'Cancelar por aforo',
-            message: `El aforo de este espacio ya no es suficiente para esta reserva.\n¿Cancelar definitivamente? El usuario será notificado.`,
+            title: 'Cancelar reserva inválida',
+            message: `Esta reserva está marcada como potencialmente inválida.\n¿Cancelar definitivamente? El usuario será notificado.`,
             isDestructive: true
         });
     };
@@ -1658,7 +1673,7 @@ export default function AdminDashboard() {
             type: 'approveException',
             id,
             title: 'Admitir excepción',
-            message: `¿Admitir excepción? La reserva volverá a estado Aceptada aunque supere el aforo actual.`,
+            message: `¿Admitir excepción? La reserva volverá a estado Aceptada aunque incumpla una regla tras el cambio administrativo.`,
             isDestructive: false
         });
     };
